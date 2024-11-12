@@ -1,5 +1,3 @@
-from math import factorial
-
 import numpy as np
 from scipy.special import genlaguerre
 
@@ -22,7 +20,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     with
 
     .. math::
-        \mathcal{L}_{p,m}(x) = A \left ( \frac{\sqrt{2}r}{w(z)} \right)^m l_{p,m} \left ( \frac{2 r^2}{w^2(z)} \right) 
+        \mathcal{L}_{p,m}(x) = A \left ( \frac{\sqrt{2}r}{w(z)} \right)^m l_{p,m} \left ( \frac{2 r^2}{w^2(z)} \right)
         \exp{\left( -\frac{r^2}{w^2(z)}\right)} \exp{ \left ( -i k_0 \frac{r^2}{2 R(z)} \right )}
 
         w(z) = w_{0} \sqrt{1 + \left( \frac{z}{Z_R}\right)^2}
@@ -130,15 +128,15 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
 
         # Calculate Rayleigh Lengths
         Zr = np.pi * w_0**2 / wavelength
-        
+
         # Calculate Size at Location Z
         wZ = w_0 * np.sqrt(1 + (z_eval / Zr) ** 2)
-           
-        # Calculate Multiplicative Factors 
+
+        # Calculate Multiplicative Factors
         A = np.sqrt(2.0 * math.factorial(p) / (np.pi * math.factorial(m + p))) / wZ
-    
+
         # Calculate the Phase contributions from propagation
-        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval,Zr)
+        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval, Zr)
 
         self.z_eval = z_eval
         self.Zr = Zr
@@ -170,12 +168,17 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         p = self.p
         m = self.m
         phiZ = self.phiZ
-        
+
         # Calculate the LG in each plane
-        LGn = A * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m) * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2) \
-                 * np.exp(-(x**2+x**2)/wZ**2) * np.exp( -1j * k0 * (x**2+y**2)/2/(z_eval**2 + Zr**2)*z)
-        
+        LGn = (
+            A
+            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m)
+            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2)
+            * np.exp(-(x**2 + x**2) / wZ**2)
+            * np.exp(-1j * k0 * (x**2 + y**2) / 2 / (z_eval**2 + Zr**2) * z)
+        )
+
         # Put it altogether
-        LG = LGn * np.exp(1j*phiZ) * np.exp(-1j*m*np.arctan2(y,x))
+        LG = LGn * np.exp(1j * phiZ) * np.exp(-1j * m * np.arctan2(y, x))
 
         return envelope

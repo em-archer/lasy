@@ -106,7 +106,7 @@ def test_transverse_profiles_rt():
     std_th = np.sqrt((2 * p + m + 1) / 2) * w0
     profile = LaguerreGaussianTransverseProfile(w0, p, m, wavelength=800e-9)
     field = profile.evaluate(r, np.zeros_like(r))
-    std = np.sqrt(np.average(r**2, weights=np.abs(r) * np.abs(field)**2))
+    std = np.sqrt(np.average(r**2, weights=np.abs(r) * np.abs(field) ** 2))
     print("std_th = ", std_th)
     print("std = ", std)
     assert np.abs(std - std_th) / std_th < 0.01

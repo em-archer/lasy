@@ -106,7 +106,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     >>>         else:
     >>>             ax[p,m].set_xticks([])
     >>>             ax[p,m+3].set_xticks([])
-    >>>         if n==0:
+    >>>         if m==0:
     >>>             ax[p,m].set_ylabel("y (µm)")
     >>>             ax[p,m+3].set_yticks([])
     >>>         else:

@@ -1,3 +1,5 @@
+from math import factorial
+
 import numpy as np
 from scipy.special import genlaguerre
 
@@ -133,7 +135,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         wZ = w_0 * np.sqrt(1 + (z_eval / Zr) ** 2)
 
         # Calculate Multiplicative Factors
-        A = np.sqrt(2.0 * math.factorial(p) / (np.pi * math.factorial(m + p))) / wZ
+        A = np.sqrt(2.0 * factorial(p) / (np.pi * factorial(m + p))) / wZ
 
         # Calculate the Phase contributions from propagation
         phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval, Zr)

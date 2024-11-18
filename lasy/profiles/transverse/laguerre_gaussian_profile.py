@@ -33,7 +33,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
 
         \Phi(z) = \left(2 p + m + 1\right) \tan^{-1}\left({\frac{z}{Z_R}}\right)
 
-        \Z_R = \frac{\pi w_0^2}{\lambda_0}
+        Z_R = \frac{\pi w_0^2}{\lambda_0}
 
 
     where  :math:`l_{p,m}` is the Laguerre polynomial of radial order :math:`p` and azimuthal order :math:`m`.

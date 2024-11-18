@@ -82,7 +82,7 @@ def test_transverse_profiles_rt():
     print("LaguerreGaussianTransverseProfile")
     p = 2
     m = 0
-    std_th = w0
+    std_th = w0 / 2 
     profile = LaguerreGaussianTransverseProfile(w0, p, m, wavelength=800e-9)
     field = profile.evaluate(r, np.zeros_like(r))
     std = np.sqrt(np.average(r**2, weights=r * np.abs(field) ** 2))

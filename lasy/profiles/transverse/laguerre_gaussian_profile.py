@@ -170,7 +170,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         phiZ = self.phiZ
 
         # Calculate the LG in each plane
-        LGn = (
+        LG = (
             A
             * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m)
             * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2)
@@ -179,6 +179,6 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         )
 
         # Put it altogether
-        LG = LGn * np.exp(1j * phiZ) * np.exp(-1j * m * np.arctan2(y, x))
+        envelope = LG * np.exp(1j * phiZ) * np.exp(-1j * m * np.arctan2(y, x))
 
         return envelope

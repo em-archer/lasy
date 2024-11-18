@@ -94,8 +94,8 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     ...         )
     ...         intensity = np.abs(transverse_profile.evaluate(X,Y))**2
     ...         vmax_intensity = np.max(intensity)
-    >>>         ax[m,n].imshow(intensity,extent=extent,cmap='bone_r',vmin=0,vmax=vmax_intensity)
-    >>>         ax[m,n].set_title('Inten: p,m = %i,%i' %(p,m))
+    >>>         ax[p,m].imshow(intensity,extent=extent,cmap='bone_r',vmin=0,vmax=vmax_intensity)
+    >>>         ax[p,m].set_title('Inten: p,m = %i,%i' %(p,m))
     >>>         phase = np.angle(transverse_profile.evaluate(X,Y))
     ...         vmax_phase = np.max(np.abs(phase))
     >>>         ax[p,m+3].imshow(phase,extent=extent,cmap='seismic',vmin=-vmax_phase,vmax=vmax_phase)

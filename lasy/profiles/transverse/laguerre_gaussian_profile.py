@@ -118,8 +118,8 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     def __init__(self, w_0, p, m, wavelength=None, z_foc=0):
         super().__init__()
         self.w_0 = w_0
+        self.p = p
         self.m = m
-        self.n = n
         self.wavelength = wavelength
         self.z_foc = z_foc
         z_eval = -z_foc  # this links our obser

@@ -126,23 +126,21 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         self.z_foc = z_foc
         z_eval = -z_foc  # this links our observation position to Siegman's definition
 
-        self.k0 = 2 * np.pi / wavelength
+        self.k0 = 2.0 * np.pi / wavelength
 
-        # Calculate Rayleigh Lengths
         Zr = np.pi * w_0**2 / wavelength
 
-        # Calculate Size at Location Z
-        wZ = w_0 * np.sqrt(1 + (z_eval / Zr) ** 2)
+        w0Z = w_0 * np.sqrt(1 + (z_eval/Zr)**2)
 
-        # Calculate Multiplicative Factors
-        A = np.sqrt(2.0 * factorial(p) / (np.pi * factorial(m + p))) / wZ
+        # Calculate Multiplicative Factors 
+        A = np.sqrt(2.0 * factorial(p) / (np.pi * factorial(m + p))) / w0Z
 
         # Calculate the Phase contributions from propagation
-        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval, Zr)
+        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval,zR)
 
         self.z_eval = z_eval
         self.Zr = Zr
-        self.wZ = wZ
+        self.w0Z = w0Z
         self.A = A
         self.phiZ = phiZ
 
@@ -165,7 +163,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         z_eval = self.z_eval
         Zr = self.Zr
         k0 = self.k0
-        wZ = self.wZ
+        w0Z = self.w0Z
         A = self.A
         p = self.p
         m = self.m
@@ -174,13 +172,13 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         # Calculate the LG in each plane
         LG = (
             A
-            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / wZ) ** (m)
-            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2)
-            * np.exp(-(x**2 + y**2) / wZ**2)
-            * np.exp(-1j * k0 * (x**2 + y**2) / 2 / (z_eval**2 + Zr**2) * z_eval)
+            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m)
+            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / w0Z**2)
+            * np.exp(-(x**2+y**2)/w0Z**2)
+            * np.exp(-1j * k0 * ((x) ** 2 + (y) ** 2) / 2 / (z_eval**2 + Zr**2) * z_eval)
         )
-
+        
         # Put it altogether
-        envelope = LG * np.exp(1j * phiZ) * np.exp(-1j * m * np.arctan2(y, x))
+        envelope = LG * np.exp(1j*phiZ) * np.exp(-1j*m*np.arctan2(Y,X))
 
         return envelope

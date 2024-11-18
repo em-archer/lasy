@@ -115,7 +115,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
 
     """
 
-    def __init__(self, w_0, p, m, wavelength=None, z_foc=0):
+    def __init__(self, w_0, p, m, wavelength, z_foc=0):
         super().__init__()
         self.w_0 = w_0
         self.p = p

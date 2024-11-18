@@ -173,11 +173,11 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
 
         # Calculate the LG in each plane
         LG = (
-            A \
-            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / wZ) ** (m) \
-            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2) \
-            * np.exp(-(x**2 + y**2) / wZ**2) \
-            * np.exp(-1j * k0 * (x**2 + y**2) / 2 / (z_eval**2 + Zr**2) * z_eval) \
+            A
+            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / wZ) ** (m)
+            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / wZ**2)
+            * np.exp(-(x**2 + y**2) / wZ**2)
+            * np.exp(-1j * k0 * (x**2 + y**2) / 2 / (z_eval**2 + Zr**2) * z_eval)
         )
 
         # Put it altogether

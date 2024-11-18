@@ -124,19 +124,21 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         self.m = m
         self.wavelength = wavelength
         self.z_foc = z_foc
-        z_eval = -z_foc  # this links our observation position to Siegman's definition
-
-        self.k0 = 2.0 * np.pi / wavelength
-
-        Zr = np.pi * w_0**2 / wavelength
-
-        w0Z = w_0 * np.sqrt(1 + (z_eval / Zr) ** 2)
-
-        # Calculate Multiplicative Factors
+        z_eval = -z_foc  # this links our observation position to Siegmann's definition
+        
+        self.k0 = 2*np.pi/wavelength
+        
+        # Calculate Rayleigh Length
+        Zr  = np.pi*w_0**2/wavelength
+        
+        # Calculate Size at Location Z
+        w0Z = w_0*np.sqrt(1 + (z_eval/Zr)**2)
+           
+        # Calculate Multiplicative Factors 
         A = np.sqrt(2.0 * factorial(p) / (np.pi * factorial(m + p))) / w0Z
-
+    
         # Calculate the Phase contributions from propagation
-        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval, zR)
+        phiZ = (2.0 * p + m + 1) * np.arctan2(z_eval,Zr)
 
         self.z_eval = z_eval
         self.Zr = Zr
@@ -170,17 +172,10 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         phiZ = self.phiZ
 
         # Calculate the LG in each plane
-        LG = (
-            A
-            * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m)
-            * genlaguerre(p, m)(2.0 * (x**2 + y**2) / w0Z**2)
-            * np.exp(-(x**2 + y**2) / w0Z**2)
-            * np.exp(
-                -1j * k0 * ((x) ** 2 + (y) ** 2) / 2 / (z_eval**2 + Zr**2) * z_eval
-            )
-        )
-
+        LG = A * (np.sqrt(2.0) * np.sqrt(x**2 + y**2) / w0Z) ** (m) * genlaguerre(p, m)(2.0 * (x**2 + y**2) / w0Z**2) \
+                 * np.exp(-(x**2+y**2)/w0Z**2) * np.exp( -1j * k0 * (x**2+y**2)/2/(z_eval**2 + Zr**2)*z_eval)
+        
         # Put it altogether
-        envelope = LG * np.exp(1j * phiZ) * np.exp(-1j * m * np.arctan2(Y, X))
+        envelope = LG * np.exp(1j*phiZ) * np.exp(-1j * m * np.arctan2(y,x))
 
         return envelope

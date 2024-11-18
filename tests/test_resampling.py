@@ -60,6 +60,8 @@ def check_resampling(laser, new_grid, m=0):
     w0_num = get_w0(laser, m)
     assert m in [0, 1]
     w0_theor = wavelength * f0 / (np.pi * w0)
+    if m == 1:
+        w0_theor *= np.sqrt(3)
     err = 2 * np.abs(w0_theor - w0_num) / (w0_theor + w0_num)
     assert err < 1e-3
 

@@ -53,7 +53,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     m : int (dimensionless)
         The order of hermite polynomial in the y direction
         i.e. :math:`n` in the above formula
-    wavelength : float (in meter), optional
+    wavelength : float (in meter)
         The main laser wavelength :math:`\lambda_0` of the laser.
     z_foc : float (in meter), optional
         Position of the focal plane. (The laser pulse is initialized at

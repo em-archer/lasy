@@ -31,7 +31,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
 
         R(z) = z + \frac{Z_R^2}{z}
 
-        \Phi(z) = \left(2 p + m + 1\right) \tan^{-1}\left({\frac{z}{Z_R}}\right)
+        \Phi(z) = \left(2 p + m + 1\right) \arctan\left({\frac{z}{Z_R}}\right)
 
         Z_R = \frac{\pi w_0^2}{\lambda_0}
 

@@ -48,10 +48,10 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         The waist of the laser pulse,
         i.e. :math:`w_{0}` in the above formula.
     p : int (dimensionless)
-        The order of Hermite polynomial in the x direction
+        The order of Laguerre polynomial in the x direction
         i.e. :math:`m` in the above formula.
     m : int (dimensionless)
-        The order of Hermite polynomial in the y direction
+        The order of Laguerre polynomial in the y direction
         i.e. :math:`n` in the above formula.
     wavelength : float (in meter)
         The main laser wavelength :math:`\lambda_0` of the laser.

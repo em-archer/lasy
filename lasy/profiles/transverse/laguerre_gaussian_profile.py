@@ -46,7 +46,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
     ----------
     w_0 : float (in meter)
         The waist of the laser pulse,
-        i.e. :math:`w_{0}` in the above formula.=
+        i.e. :math:`w_{0}` in the above formula.
     p : int (dimensionless)
         The order of hermite polynomial in the x direction
         i.e. :math:`m` in the above formula

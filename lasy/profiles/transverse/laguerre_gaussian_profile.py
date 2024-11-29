@@ -124,7 +124,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         self.m = m
         self.wavelength = wavelength
         self.z_foc = z_foc
-        z_eval = -z_foc  # this links our observation position to Siegmann's definition
+        z_eval = -z_foc  # this links our observation position to Siegman's definition
 
         self.k0 = 2 * np.pi / wavelength
 

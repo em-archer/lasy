@@ -1,3 +1,4 @@
+from .flattened_gaussian_profile import FlattenedGaussianTransverseProfile
 from .gaussian_profile import GaussianTransverseProfile
 from .hermite_gaussian_profile import HermiteGaussianTransverseProfile
 from .jinc_profile import JincTransverseProfile
@@ -20,4 +21,5 @@ __all__ = [
     "TransverseProfile",
     "SummedTransverseProfile",
     "ScaledTransverseProfile",
+    "FlattenedGaussianTransverseProfile",
 ]

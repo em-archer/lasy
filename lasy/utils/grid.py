@@ -223,9 +223,10 @@ class Grid:
         (Only along the time axis, not along the transverse spatial coordinates.)
         """
         assert self.temporal_field_valid
-        self.spectral_field = np.fft.ifft(
-            self.temporal_field, axis=time_axis_indx, norm="backward"
-        )
+
+        shifted_temporal = np.fft.fftshift(self.temporal_field, axes=time_axis_indx)
+        self.spectral_field = np.fft.ifft(shifted_temporal, axis=time_axis_indx)
+
         self.spectral_field_valid = True
 
     def spectral2temporal_fft(self):
@@ -235,7 +236,8 @@ class Grid:
         (Only along the time axis, not along the transverse spatial coordinates.)
         """
         assert self.spectral_field_valid
-        self.temporal_field = np.fft.fft(
-            self.spectral_field, axis=time_axis_indx, norm="backward"
-        )
+
+        shifted_temporal = np.fft.fft(self.spectral_field, axis=time_axis_indx)
+        self.temporal_field = np.fft.fftshift(shifted_temporal, axes=time_axis_indx)
+
         self.temporal_field_valid = True

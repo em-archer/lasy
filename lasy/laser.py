@@ -12,6 +12,7 @@ from lasy.utils.laser_utils import (
     normalize_peak_power,
 )
 from lasy.utils.openpmd_helper import write_to_openpmd_file
+from lasy.utils.plotting import show_laser
 
 
 class Laser:
@@ -421,46 +422,17 @@ class Laser:
         )
         self.output_iteration += 1
 
-    def show(self, **kw):
+    def show(self, show_intensity=False, **kw):
         """
-        Show a 2D image of the laser amplitude.
+        Show a 2D image of the laser amplitude or intensity.
 
         Parameters
         ----------
+        show_intensity : bool
+            if False the laser amplitude is plotted
+            if True then the intensity of the laser is plotted along with lineouts
+            and a measure of the pulse duration and spot size
+
         **kw : additional arguments to be passed to matplotlib's imshow command
         """
-        temporal_field = self.grid.get_temporal_field()
-        if self.dim == "rt":
-            # Show field in the plane y=0, above and below axis, with proper sign for each mode
-            E = [
-                np.concatenate(
-                    ((-1.0) ** m * temporal_field[m, ::-1], temporal_field[m])
-                )
-                for m in self.grid.azimuthal_modes
-            ]
-            E = sum(E)  # Sum all the modes
-            extent = [
-                self.grid.lo[-1],
-                self.grid.hi[-1],
-                -self.grid.hi[0],
-                self.grid.hi[0],
-            ]
-
-        else:
-            # In 3D show an image in the xt plane
-            i_slice = int(temporal_field.shape[1] // 2)
-            E = temporal_field[:, i_slice, :]
-            extent = [
-                self.grid.lo[-1],
-                self.grid.hi[-1],
-                self.grid.lo[0],
-                self.grid.hi[0],
-            ]
-
-        import matplotlib.pyplot as plt
-
-        plt.imshow(abs(E), extent=extent, aspect="auto", origin="lower", **kw)
-        cb = plt.colorbar()
-        cb.set_label("$|E_{envelope}|$ (V/m)")
-        plt.xlabel("t (s)")
-        plt.ylabel("x (m)")
+        show_laser(self.grid, self.dim, show_intensity, **kw)

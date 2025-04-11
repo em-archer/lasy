@@ -364,7 +364,9 @@ def get_full_field(laser, theta=0, slice=0, slice_axis="x", Nt=None):
     return env, ext
 
 
-def get_spectrum(grid, dim, range=None, bins=20, omega0=None, method="sum"):
+def get_spectrum(
+    grid, dim, range=None, bins=20, omega0=None, method="sum", ordering="zero_center"
+):
     r"""
     Get the frequency spectrum of an envelope or electric field.
 
@@ -433,6 +435,12 @@ def get_spectrum(grid, dim, range=None, bins=20, omega0=None, method="sum"):
         Determines the type of spectrum that is returned as described above.
         By default 'sum'.
 
+    ordering : string (optional)
+        Order of the frequency array and corresponding spectrum.
+        Options are:
+        - ``"zero_center"``: np.fft.fftshift is applied so the frequency array is monotonous with 0 at the center.
+        - ``"zero_first"``: The frequency array starts with positive frequencies, and negative frequencies are at the end. The array is not monotonous. This is the default with np.fft.ifft.
+
     Returns
     -------
     spectrum : ndarray
@@ -441,18 +449,9 @@ def get_spectrum(grid, dim, range=None, bins=20, omega0=None, method="sum"):
     omega : ndarray
         Array with the angular frequencies of the spectrum.
     """
-    # Get the frequencies of the fft output.
-    freq = np.fft.fftfreq(grid.shape[-1], d=(grid.axes[-1][1] - grid.axes[-1][0]))
-    omega = 2 * np.pi * freq
-
-    # Get on axis or full field.
-    field = grid.get_temporal_field()
-    if method == "on_axis":
-        if dim == "xyt":
-            nx, ny, _ = field.shape
-            field = field[nx // 2, ny // 2]
-        else:
-            field = field[0, 0]
+    spectral_field, omega = grid.get_spectral_field()
+    # multiply by the number of points due to np.fft.fft normalization
+    spectral_field *= grid.npoints[-1]
 
     # Get spectrum.
     if grid.is_envelope:
@@ -460,22 +459,16 @@ def get_spectrum(grid, dim, range=None, bins=20, omega0=None, method="sum"):
         # conjugate of the envelope do not overlap. Then we only need
         # one of them.
         assert omega0 is not None
-        spectrum = 0.5 * np.fft.fft(field) * grid.dx[-1]
-        omega = omega0 - omega
-        # Sort frequency array (and the spectrum accordingly).
-        i_sort = np.argsort(omega)
-        omega = omega[i_sort]
-        spectrum = spectrum[..., i_sort]
-        # Keep only positive frequencies.
-        i_keep = omega >= 0
-        omega = omega[i_keep]
-        spectrum = spectrum[..., i_keep]
+        spectrum = 0.5 * spectral_field * grid.dx[-1]
+        if method == "on_axis":
+            nx, ny, _ = spectrum.shape
+            spectrum = spectrum[nx // 2, ny // 2] if dim == "xyt" else spectrum[0, 0]
+        omega += omega0
     else:
-        spectrum = np.fft.fft(field) * grid.dx[-1]
-        # Keep only positive frequencies.
-        i_keep = spectrum.shape[-1] // 2
-        omega = omega[:i_keep]
-        spectrum = spectrum[..., :i_keep]
+        spectrum = spectral_field * grid.dx[-1]
+        if method == "on_axis":
+            nx, ny, _ = spectrum.shape
+            spectrum = spectrum[nx // 2, ny // 2] if dim == "xyt" else spectrum[0, 0]
 
     # Convert to spectral energy density (J/(m^2 rad Hz)).
     if method != "raw":
@@ -489,6 +482,11 @@ def get_spectrum(grid, dim, range=None, bins=20, omega0=None, method="sum"):
             spectrum = np.sum(spectrum * dV / dz, axis=(0, 1))
         else:
             spectrum = np.sum(spectrum[0] * dV[:, np.newaxis] / dz, axis=0)
+
+    assert ordering in ["zero_first", "zero_center"]
+    if ordering == "zero_center":
+        omega = np.fft.fftshift(omega, axes=-1)
+        spectrum = np.fft.fftshift(spectrum, axes=-1)
 
     # If the user specified a frequency range, interpolate into it.
     if method in ["sum", "on_axis"] and range is not None:
@@ -1154,12 +1152,10 @@ def get_zeta(dim, grid, k0):
     assert dim == "xyt", "No spatial chirp for axis-symmetric dimension."
     w0 = get_w0(grid, dim)
     tau = 2 * get_duration(grid, dim)
-    env_spec = grid.get_spectral_field()
+    env_spec, spectral_axis = grid.get_spectral_field()
     env_spec_abs2 = np.abs(env_spec**2)
     # Get the spectral axis
-    dt = grid.dx[-1]
-    Nt = grid.shape[-1]
-    omega = 2 * np.pi * np.fft.fftfreq(Nt, dt) + k0 * c
+    omega = spectral_axis + k0 * c
     # Calculate dx0 and dy0 in (x,y,omega) space
     weight_x_3d = np.transpose(env_spec_abs2, (2, 1, 0))
     weight_y_3d = np.transpose(env_spec_abs2, (2, 0, 1))
@@ -1207,12 +1203,10 @@ def get_beta(dim, grid, k0):
     beta_x, beta_y : Angular dispersion in :math:` \beta = \frac{d\theta_0}{d\omega}` (second)
     """
     assert dim == "xyt", "No angular chirp for axis-symmetric dimension."
-    env_spec = grid.get_spectral_field()
+    env_spec, spectral_axis = grid.get_spectral_field()
     env_spec_abs2 = np.abs(env_spec**2)
     # Get the spectral axis
-    dt = grid.dx[-1]
-    Nt = grid.shape[-1]
-    omega = 2 * np.pi * np.fft.fftfreq(Nt, dt) + k0 * c
+    omega = spectral_axis + k0 * c
     # Calculate angular dispersion beta
     phi_envelop_abs = np.unwrap(
         np.array(np.arctan2(env_spec.imag, env_spec.real)), axis=2
@@ -1293,7 +1287,7 @@ def get_propation_angle(dim, grid, k0):
     return [angle_x, angle_y]
 
 
-def get_spectral_phase(grid, dim, omega0, method="sum"):
+def get_spectral_phase(grid, dim, omega0, method="sum", ordering="zero_center"):
     r"""
     Calculate the spectral phase of a pulse in a given grid.
 
@@ -1333,6 +1327,13 @@ def get_spectral_phase(grid, dim, omega0, method="sum"):
         - ``'sum'``: Calculates the spectral phase of the spatially summed field (default).
         - ``'on-axis'``: Calculates the on-axis spectral phase.
 
+    ordering : string (optional)
+        Order of the frequency array and corresponding spectral phase.
+        Options are:
+        - ``"zero_center"``: np.fft.fftshift is applied so the frequency array is monotonous with 0 at the center.
+        - ``"zero_first"``: The frequency array starts with positive frequencies, and negative frequencies are at the end. The array is not monotonous. This is the default with np.fft.ifft.
+
+
     Returns
     -------
     phase: ndarray of floats (1D)
@@ -1346,8 +1347,7 @@ def get_spectral_phase(grid, dim, omega0, method="sum"):
     assert grid.is_envelope
 
     # get the spectral field
-    field_spectral = grid.get_spectral_field()
-    field_spectral = np.fft.fftshift(field_spectral, axes=-1)
+    field_spectral, omega = grid.get_spectral_field()
 
     # if method=='on-axis' get the on-axis field envelope, and calculate its phase
     assert method in ["on-axis", "sum"]
@@ -1371,15 +1371,15 @@ def get_spectral_phase(grid, dim, omega0, method="sum"):
 
         phase = np.angle(summed_field)
 
+    # create omega array (angular frequencies)
+    assert ordering in ["zero_first", "zero_center"]
+    if ordering == "zero_center":
+        omega = np.fft.fftshift(omega, axes=-1)
+        phase = np.fft.fftshift(phase, axes=-1)
+    omega += omega0
+
     # unwrap the phase
     phase = np.unwrap(phase)
-
-    # create omega array (angular frequencies)
-    omega = np.fft.fftshift(
-        2 * np.pi * np.fft.fftfreq(grid.npoints[-1], grid.dx[-1]), axes=-1
-    )
-
-    omega += omega0
 
     # return the phase and omega arrays
     return phase, omega

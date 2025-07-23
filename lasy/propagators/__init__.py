@@ -2,6 +2,7 @@ from .abcd import ABCD
 from .angular_spectrum_propagator import AngularSpectrumPropagator
 from .axiprop_propagators import AxipropFresnelPropagator, AxipropPropagator
 from .collins_sfft_propagator import CollinsSFFTPropagator
+from .fresnel_chirpztransform_propagator import FresnelChirpZPropagator
 from .fresnel_sfft_propagator import FresnelSFFTPropagator
 from .nonlinear_phase_shift import NonlinearKerrStep
 from .propagator import Propagator
@@ -17,4 +18,5 @@ __all__ = [
     "AngularSpectrumPropagator",
     "AxipropPropagator",
     "AxipropFresnelPropagator",
+    "FresnelChirpZPropagator",
 ]

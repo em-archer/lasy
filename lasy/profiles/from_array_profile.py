@@ -59,12 +59,20 @@ class FromArrayProfile(Profile):
         if dim == "xyt":
             assert axes_order == ["x", "y", "t"]
 
-            self.combined_field_interp = RegularGridInterpolator(
+            self.field_interp_real = RegularGridInterpolator(
                 (axes["x"], axes["y"], axes["t"]),
-                xp.abs(self.array) + 1.0j * xp.unwrap(xp.angle(self.array), axis=-1),
+                self.array.real,
                 bounds_error=False,
                 fill_value=0.0,
             )
+
+            self.field_interp_imag = RegularGridInterpolator(
+                (axes["x"], axes["y"], axes["t"]),
+                self.array.imag,
+                bounds_error=False,
+                fill_value=0.0,
+            )
+
         else:  # dim = "rt"
             assert axes_order == ["r", "t"]
 
@@ -103,7 +111,9 @@ class FromArrayProfile(Profile):
     def evaluate(self, x, y, t):
         """Return the envelope field of the scaled profile."""
         if self.dim == "xyt":
-            combined_field = self.combined_field_interp((x, y, t))
+            combined_field = self.field_interp_real(
+                (x, y, t)
+            ) + 1.0j * self.field_interp_imag((x, y, t))
         else:
             r = xp.sqrt(x**2 + y**2)
             theta = xp.angle(x + 1j * y)

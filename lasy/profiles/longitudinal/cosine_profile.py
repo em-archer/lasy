@@ -1,4 +1,4 @@
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 
 from .longitudinal_profile import LongitudinalProfile
 
@@ -65,7 +65,7 @@ class CosineLongitudinalProfile(LongitudinalProfile):
             xp.cos(0.5 * xp.pi * tn)
             * (tn > -1)
             * (tn < 1)
-            * xp.exp(+1.0j * (self.cep_phase + self.omega0 * self.t_peak))
+            * xp.exp(as_array(1.0j) * (self.cep_phase + self.omega0 * self.t_peak))
         )
 
         return envelope

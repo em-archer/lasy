@@ -9,7 +9,7 @@ Additionally, the correctness is validated by comparing the Gaussian profile wit
 import scipy.constants as scc
 from numpy.testing import assert_approx_equal
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.profiles.combined_profile import CombinedLongitudinalTransverseProfile
 from lasy.profiles.gaussian_profile import GaussianProfile
@@ -91,13 +91,13 @@ laser_2d_gaussian = Laser(
 env_combined = laser_2d_combined.grid.get_temporal_field()
 env_gaussian = laser_2d_gaussian.grid.get_temporal_field()
 
-err_real = xp.average(
-    (xp.array(env_combined.real) - xp.array(env_gaussian.real))
-    / xp.array(env_combined.real)
+err_real = xp.mean(
+    (as_array(env_combined.real) - as_array(env_gaussian.real))
+    / as_array(env_combined.real)
 )
-err_imag = xp.average(
-    (xp.array(env_combined.imag) - xp.array(env_gaussian.imag))
-    / xp.array(env_combined.imag)
+err_imag = xp.mean(
+    (as_array(env_combined.imag) - as_array(env_gaussian.imag))
+    / as_array(env_combined.imag)
 )
 
 gdd_3d, gdd0_3d = get_dispersion(

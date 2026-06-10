@@ -8,7 +8,7 @@ the focal position ; we then check that the waist as the
 expected value in the far field (i.e. in the focal plane).
 """
 
-from lasy.backend import xp
+from lasy.backend import xp, weighted_avg
 from lasy.laser import Laser
 from lasy.optical_elements import ParabolicMirror
 from lasy.profiles.gaussian_profile import GaussianProfile
@@ -35,13 +35,13 @@ def get_w0(laser):
         A2 = (xp.abs(field[0, :, :]) ** 2).sum(-1)
         ax = laser.grid.axes[0]
         if ax[0] > 0:
-            A2 = xp.r_[A2[::-1], A2]
-            ax = xp.r_[-ax[::-1], ax]
+            A2 = xp.concatenate([xp.flip(A2, (0,)), A2])
+            ax = xp.concatenate([-xp.flip(ax, (0,)), ax])
         else:
-            A2 = xp.r_[A2[::-1][:-1], A2]
-            ax = xp.r_[-ax[::-1][:-1], ax]
+            A2 = xp.concatenate([xp.flip(A2, (0,))[: len(A2) - 1], A2])
+            ax = xp.concatenate([-xp.flip(ax, (0,))[: len(ax) - 1], ax])
 
-    sigma = 2 * xp.sqrt(xp.average(ax**2, weights=A2))
+    sigma = 2 * xp.sqrt(weighted_avg(ax**2, weights=A2))
 
     return sigma
 

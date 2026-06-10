@@ -132,7 +132,7 @@ def show_laser(
     if dim == "rt":
         # Show field in the plane y=0, above and below axis, with proper sign for each mode
         F_plot = [
-            xp.concatenate(((-1.0) ** m * F[m, ::-1], F[m]))
+            xp.concatenate(((-1.0) ** m * xp.flip(F[m], (0,)), F[m]))
             for m in grid.azimuthal_modes
         ]
         F_plot = sum(F_plot)  # Sum all the modes

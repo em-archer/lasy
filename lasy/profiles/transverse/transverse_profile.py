@@ -1,4 +1,4 @@
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 
 
 class TransverseProfile(object):
@@ -73,7 +73,7 @@ class TransverseProfile(object):
             Contains the value of the envelope at the specified points
             This array has the same shape as the arrays x, y
         """
-        return self._evaluate(x + self.x_offset, y + self.y_offset)
+        return as_array(self._evaluate(x + self.x_offset, y + self.y_offset))
 
     def set_offset(self, x_offset, y_offset):
         """

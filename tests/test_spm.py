@@ -1,6 +1,6 @@
 from scipy.constants import c, epsilon_0
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.profiles import GaussianProfile
 from lasy.propagators.nonlinear_phase_shift import NonlinearKerrStep
@@ -12,7 +12,7 @@ def make_laser():
         wavelength=800e-9,
         pol=(1, 0),
         laser_energy=100e-3,
-        tau=50e-15 / xp.sqrt(2 * xp.log(2)),
+        tau=50e-15 / xp.sqrt(2 * xp.log(as_array(2))),
         w0=10e-3,
         t_peak=0,
     )
@@ -69,4 +69,4 @@ def test_nonlinear_step():
         1 + 4 / (3 * 3**0.5) * (phase_shift) ** 2
     )
 
-    assert xp.allclose(bandwidths_propagated, bandwidths_analytical, rtol=1e-3)
+    assert xp.allclose(as_array(bandwidths_propagated), as_array(bandwidths_analytical), rtol=1e-3)

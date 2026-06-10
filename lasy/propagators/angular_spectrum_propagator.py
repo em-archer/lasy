@@ -1,8 +1,6 @@
-from copy import deepcopy
-
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, lasy_backend, as_array, copy, gradient, interp
 from lasy.utils.fft_wrapper import fft
 
 from .propagator import Propagator
@@ -71,7 +69,10 @@ class AngularSpectrumPropagator(Propagator):
             Default value is n=1. to describe propagation in vacuum.
         """
         dim = dim if dim is not None else self.dim
-        assert isinstance(n, (int, float, xp.ndarray)) or callable(n)
+        if lasy_backend == "TORCH":
+            assert isinstance(n, (int, float, xp.Tensor)) or callable(n)
+        else:
+            assert isinstance(n, (int, float, xp.ndarray)) or callable(n)
         assert dim in ["rt", "xyt"]
 
         self.dim = dim
@@ -112,7 +113,7 @@ class AngularSpectrumPropagator(Propagator):
         self.update(omega0=omega0, dim=dim, n=self.n)
 
         if grid_out is None:
-            grid_out = deepcopy(grid_in)
+            grid_out = copy(grid_in)
 
         if self.dim == "rt":
             field, dt = self._propagate_mrt(distance, grid_in)
@@ -159,10 +160,10 @@ class AngularSpectrumPropagator(Propagator):
         )
 
         # compensate group delay to keep pulse centered in grid
-        if xp.ndim(n) > 0:
-            dndom = xp.gradient(n, omega)
-            dndom = xp.interp(xp.array([self.omega0]), omega, dndom)
-            n0 = xp.interp(xp.array([self.omega0]), omega, n)
+        if as_array(n).ndim > 0:
+            dndom = gradient(n, omega, 0)
+            dndom = interp([self.omega0], omega, dndom)
+            n0 = interp([self.omega0], omega, n)
         else:
             dndom = 0
             n0 = n

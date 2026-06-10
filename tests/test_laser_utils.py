@@ -1,7 +1,7 @@
 from numpy.testing import assert_approx_equal
 from scipy.constants import c, epsilon_0
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.optical_elements.polynomial_spectral_phase import PolynomialSpectralPhase
 from lasy.profiles.gaussian_profile import GaussianProfile
@@ -74,9 +74,9 @@ def test_laser_analysis_utils():
             laser_chirped.grid, dim, omega0=laser_chirped.profile.omega0, order=3
         )
 
-        assert xp.isclose(gd, gd_evaluated, atol=laser_chirped.grid.dx[-1])
-        assert xp.isclose(gdd, gdd_evaluated, atol=0)
-        assert xp.isclose(tod, tod_evaluated, atol=0)
+        assert xp.isclose(as_array(gd), gd_evaluated, atol=laser_chirped.grid.dx[-1])
+        assert xp.isclose(as_array(gdd), gdd_evaluated, atol=0)
+        assert xp.isclose(as_array(tod), tod_evaluated, atol=0)
 
 
 def test_laser_normalization_utils():
@@ -92,7 +92,7 @@ def test_laser_normalization_utils():
         # Check peak field normalization
         laser.normalize(1, kind="field")
         field = laser.grid.get_temporal_field()
-        assert_approx_equal(1, xp.abs(field.max()), significant=10)
+        assert_approx_equal(1, xp.max(xp.abs(field)), significant=10)
 
         # Check peak intensity normalization
         laser.normalize(1, kind="intensity")

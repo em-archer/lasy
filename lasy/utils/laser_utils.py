@@ -2,9 +2,24 @@ from axiprop.containers import ScalarFieldEnvelope
 from axiprop.lib import PropagatorFFT2, PropagatorResampling
 from scipy.constants import c, e, epsilon_0, m_e
 
-from lasy.backend import hilbert, to_cpu, to_gpu, use_cupy, xp
+from lasy.backend import (
+    xp,
+    lasy_backend,
+    to_cpu,
+    to_gpu,
+    as_array,
+    copy,
+    interp,
+    unwrap,
+    gradient,
+    hilbert,
+    weighted_avg,
+)
 
 from .grid import Grid
+
+backend = "CU" if lasy_backend in ["TORCH", "CP"] else "NP"
+print(f"Using {backend} backend for Axiprop propagators.")
 
 
 def compute_laser_energy(dim, grid):
@@ -329,10 +344,8 @@ def get_full_field(laser, theta=0, slice=0, slice_axis="x", Nt=None):
         env_new = xp.zeros((Nr, Nt), dtype=env.dtype)
 
         for ir in range(Nr):
-            slice_abs = xp.interp(time_axis_new, time_axis, xp.abs(env[ir]))
-            slice_angl = xp.interp(
-                time_axis_new, time_axis, xp.unwrap(xp.angle(env[ir]))
-            )
+            slice_abs = interp(time_axis_new, time_axis, xp.abs(env[ir]))
+            slice_angl = interp(time_axis_new, time_axis, unwrap(xp.angle(env[ir])))
             env_new[ir] = slice_abs * xp.exp(1j * slice_angl)
 
         time_axis = time_axis_new
@@ -342,7 +355,7 @@ def get_full_field(laser, theta=0, slice=0, slice_axis="x", Nt=None):
     env = xp.real(env)
 
     if laser.dim == "rt":
-        ext = xp.array(
+        ext = as_array(
             [
                 laser.grid.lo[-1],
                 laser.grid.hi[-1],
@@ -351,7 +364,7 @@ def get_full_field(laser, theta=0, slice=0, slice_axis="x", Nt=None):
             ]
         )
     else:
-        ext = xp.array(
+        ext = as_array(
             [
                 laser.grid.lo[-1],
                 laser.grid.hi[-1],
@@ -484,13 +497,17 @@ def get_spectrum(
 
     assert ordering in ["zero_first", "zero_center"]
     if ordering == "zero_center":
-        omega = xp.fft.fftshift(omega, axes=-1)
-        spectrum = xp.fft.fftshift(spectrum, axes=-1)
+        try:
+            omega = xp.fft.fftshift(omega, axes=-1)
+            spectrum = xp.fft.fftshift(spectrum, axes=-1)
+        except TypeError:
+            omega = xp.fft.fftshift(omega, dim=-1)
+            spectrum = xp.fft.fftshift(spectrum, dim=-1)
 
     # If the user specified a frequency range, interpolate into it.
     if method in ["sum", "on_axis"] and range is not None:
         omega_interp = xp.linspace(*range, bins)
-        spectrum = xp.interp(omega_interp, omega, spectrum)
+        spectrum = interp(omega_interp, omega, spectrum)
         omega = omega_interp
 
     return spectrum, omega
@@ -563,9 +580,9 @@ def get_frequency(
     # Assumes t is last dimension!
     if grid.is_envelope:
         assert omega0 is not None
-        phase = xp.unwrap(xp.angle(field))
-        omega = omega0 + xp.gradient(-phase, grid.axes[-1], axis=-1, edge_order=2)
-        central_omega = xp.average(omega, weights=xp.abs(field))
+        phase = unwrap(xp.angle(field))
+        omega = omega0 + gradient(-phase, grid.axes[-1], axis=-1, edge_order=2)
+        central_omega = weighted_avg(omega, xp.abs(field))
     else:
         assert dim in ["xyt", "rt"]
         if dim == "xyt" and phase_unwrap_nd:
@@ -586,15 +603,15 @@ def get_frequency(
             )
             phase = unwrap_phase(xp.angle(h))
         else:
-            phase = xp.unwrap(xp.angle(h))
-        omega = xp.gradient(-phase, grid.axes[-1], axis=-1, edge_order=2)
+            phase = unwrap(xp.angle(h))
+        omega = gradient(-phase, grid.axes[-1], axis=-1, edge_order=2)
 
         if dim == "xyt":
             weights = xp.abs(h)
         else:
-            r = grid.axes[0].reshape((grid.axes[0].size, 1))
+            r = grid.axes[0].reshape((grid.len(grid.axes[0]), 1))
             weights = r * xp.abs(h)
-        central_omega = xp.average(omega, weights=weights)
+        central_omega = weighted_avg(omega, weights)
 
     # Filter out too small frequencies
     omega = xp.maximum(omega, lower_bound * central_omega)
@@ -688,10 +705,7 @@ def vector_potential_to_field(grid, omega0, direct=False):
     assert grid.is_envelope
     field = grid.get_temporal_field()
     if direct:
-        A = (
-            -xp.gradient(field, grid.axes[-1], axis=-1, edge_order=2)
-            + 1j * omega0 * field
-        )
+        A = -gradient(field, grid.axes[-1], axis=-1, edge_order=2) + 1j * omega0 * field
         return m_e * c / e * A
     else:
         omega, _ = get_frequency(grid, omega0=omega0)
@@ -817,8 +831,8 @@ def weighted_std(values, weights=None):
     -------
     A float with the value of the standard deviation
     """
-    mean_val = xp.average(values, weights=weights)
-    std = xp.sqrt(xp.average((values - mean_val) ** 2, weights=weights))
+    mean_val = weighted_avg(values, weights)
+    std = xp.sqrt(weighted_avg((values - mean_val) ** 2, weights))
     return std
 
 
@@ -850,7 +864,7 @@ def create_grid(array, axes, dim, is_envelope=True, position=0.0):
     if dim == "xyt":
         lo = (axes["x"][0], axes["y"][0], axes["t"][0])
         hi = (axes["x"][-1], axes["y"][-1], axes["t"][-1])
-        npoints = (axes["x"].size, axes["y"].size, axes["t"].size)
+        npoints = (len(axes["x"]), len(axes["y"]), len(axes["t"]))
         grid = Grid(dim, lo, hi, npoints, is_envelope=is_envelope, position=position)
         assert xp.allclose(grid.axes[0], axes["x"])
         assert xp.allclose(grid.axes[1], axes["y"])
@@ -860,7 +874,7 @@ def create_grid(array, axes, dim, is_envelope=True, position=0.0):
     else:  # dim == "rt":
         lo = (axes["r"][0], axes["t"][0])
         hi = (axes["r"][-1], axes["t"][-1])
-        npoints = (axes["r"].size, axes["t"].size)
+        npoints = (len(axes["r"]), len(axes["t"]))
         nm = int((array.shape[0] + 1) / 2)
         grid = Grid(
             dim,
@@ -880,7 +894,12 @@ def create_grid(array, axes, dim, is_envelope=True, position=0.0):
 
 
 def export_to_z(
-    dim, grid, omega0, z_axis=None, z0=0.0, t0=0.0, backend="CU" if use_cupy else "NP"
+    dim,
+    grid,
+    omega0,
+    z_axis=None,
+    z0=0.0,
+    t0=0.0,
 ):
     """
     Export laser pulse to spatial domain from temporal domain (internal LASY representation).
@@ -943,13 +962,18 @@ def export_to_z(
             )
 
         field_z = xp.zeros(
-            (field.shape[0], field.shape[1], z_axis.size),
+            (field.shape[0], field.shape[1], len(z_axis)),
             dtype=field.dtype,
         )
 
         # Convert the spectral image to the spatial field representation
-        for i_m in range(grid.azimuthal_modes.size):
-            FieldAxprp.import_field(to_cpu(xp.transpose(field[i_m]).copy()))
+        for i_m in range(len(grid.azimuthal_modes)):
+            if lasy_backend == "TORCH":
+                FieldAxprp.import_field(
+                    to_cpu(copy(xp.permute(field[i_m], (1, 0))))
+                )
+            else:
+                FieldAxprp.import_field(to_cpu(copy(xp.transpose(field[i_m]))))
 
             field_z[i_m] = to_gpu(
                 prop[i_m].t2z(FieldAxprp.Field_ft, to_cpu(z_axis), z0=z0, t0=t0).T
@@ -969,7 +993,7 @@ def export_to_z(
             verbose=False,
         )
         # Convert the spectral image to the spatial field representation
-        FieldAxprp.import_field(to_cpu(xp.moveaxis(field, -1, 0).copy()))
+        FieldAxprp.import_field(to_cpu(copy(xp.moveaxis(field, -1, 0))))
         field_z = to_gpu(prop.t2z(FieldAxprp.Field_ft, to_cpu(z_axis), z0=z0, t0=t0))
         field_z = xp.moveaxis(field_z, 0, -1)
         field_z *= xp.exp(-1j * (z_axis / c + t0) * omega0)
@@ -985,7 +1009,6 @@ def import_from_z(
     z_axis,
     z0=0.0,
     t0=0.0,
-    backend="CU" if use_cupy else "NP",
 ):
     """
     Import laser pulse from spatial domain to temporal domain (internal LASY representation).
@@ -1024,7 +1047,7 @@ def import_from_z(
     z_axis_indx = -1
     t_axis = grid.axes[z_axis_indx]
     dz = z_axis[1] - z_axis[0]
-    Nz = z_axis.size
+    Nz = len(z_axis)
 
     # Transform the field from spatial to wavenumber domain
     field_fft = xp.fft.fft(field_z, axis=z_axis_indx, norm="forward")
@@ -1049,8 +1072,11 @@ def import_from_z(
 
         # Convert the spectral image to the spatial field representation
         field = xp.zeros(grid.shape, dtype=xp.complex128)
-        for i_m in range(grid.azimuthal_modes.size):
-            transform_data = xp.transpose(field_fft[i_m]).copy()
+        for i_m in range(len(grid.azimuthal_modes)):
+            if lasy_backend == "TORCH":
+                transform_data = copy(xp.permute(field_fft[i_m], dims=(1, 0)))
+            else:
+                transform_data = copy(xp.transpose(field_fft[i_m]))
             transform_data *= xp.exp(-1j * z_axis[0] * (k_z[:, None] - omega0 / c))
             field[i_m] = to_gpu(
                 prop[i_m].z2t(to_cpu(transform_data), to_cpu(t_axis), z0=z0, t0=t0)
@@ -1070,7 +1096,7 @@ def import_from_z(
             verbose=False,
         )
         # Convert the spectral image to the spatial field representation
-        transform_data = xp.moveaxis(field_fft, -1, 0).copy()
+        transform_data = copy(xp.moveaxis(field_fft, -1, 0))
         transform_data *= xp.exp(-1j * z_axis[0] * (k_z[:, None, None] - omega0 / c))
         tmp = prop.z2t(to_cpu(transform_data), to_cpu(t_axis), z0=z0, t0=t0)
         field = xp.moveaxis(to_gpu(tmp), 0, -1)
@@ -1108,13 +1134,13 @@ def get_w0(grid, dim):
         A2 = (xp.abs(field[0, :, :]) ** 2).sum(-1)
         ax = grid.axes[0]
         if ax[0] > 0:
-            A2 = xp.r_[A2[::-1], A2]
-            ax = xp.r_[-ax[::-1], ax]
+            A2 = xp.concatenate([xp.flip(A2, (0,)), A2])
+            ax = xp.concatenate([-xp.flip(ax, (0,)), ax])
         else:
-            A2 = xp.r_[A2[::-1][:-1], A2]
-            ax = xp.r_[-ax[::-1][:-1], ax]
+            A2 = xp.concatenate([xp.flip(A2, (0,))[: len(A2) - 1], A2])
+            ax = xp.concatenate([-xp.flip(ax, (0,))[: len(ax) - 1], ax])
 
-    sigma = 2 * xp.sqrt(xp.average(ax**2, weights=A2))
+    sigma = 2 * xp.sqrt(weighted_avg(ax**2, A2))
 
     return sigma
 
@@ -1143,10 +1169,10 @@ def get_phi2(dim, grid):
     env = grid.get_temporal_field()
     env_abs2 = xp.abs(env**2)
     # Calculate group-delayed dispersion
-    phi_envelop = xp.unwrap(xp.angle(env), axis=2)
-    pphi_pt = xp.gradient(phi_envelop, grid.dx[-1], axis=2)
-    pphi_pt2 = xp.gradient(pphi_pt, grid.dx[-1], axis=2)
-    phi2 = xp.average(pphi_pt2, weights=env_abs2)
+    phi_envelop = unwrap(xp.angle(env), axis=2)
+    pphi_pt = gradient(phi_envelop, grid.dx[-1], axis=2)
+    pphi_pt2 = gradient(pphi_pt, grid.dx[-1], axis=2)
+    phi2 = weighted_avg(pphi_pt2, env_abs2)
 
     return phi2
 
@@ -1181,8 +1207,13 @@ def get_zeta(dim, grid, k0):
     # Get the spectral axis
     omega = spectral_axis + k0 * c
     # Calculate dx0 and dy0 in (x,y,omega) space
-    weight_x_3d = xp.transpose(env_spec_abs2, (2, 1, 0))
-    weight_y_3d = xp.transpose(env_spec_abs2, (2, 0, 1))
+    if lasy_backend == "TORCH":
+        # In PyTorch, the transpose function does not support more than 2 dimensions, so we need to permute the axes instead.
+        weight_x_3d = xp.permute(env_spec_abs2, (2, 1, 0))
+        weight_y_3d = xp.permute(env_spec_abs2, (2, 0, 1))
+    else:
+        weight_x_3d = xp.transpose(env_spec_abs2, (2, 1, 0))
+        weight_y_3d = xp.transpose(env_spec_abs2, (2, 0, 1))
     weight_x_2d = xp.sum(weight_x_3d, axis=2)
     weight_y_2d = xp.sum(weight_y_3d, axis=2)
     # Calculate xda and yda, avoiding division by zero
@@ -1193,12 +1224,12 @@ def get_zeta(dim, grid, k0):
         weight_y_2d != 0, xp.sum(grid.axes[1] * weight_y_3d, axis=2) / weight_y_2d, 0
     )
     # Calculate spatial chirp zeta
-    derivative_x_zeta = xp.gradient(xda, omega, axis=0)
-    derivative_y_zeta = xp.gradient(yda, omega, axis=0)
+    derivative_x_zeta = gradient(xda, omega, axis=0)
+    derivative_y_zeta = gradient(yda, omega, axis=0)
     weight_x_2d = xp.mean(env_spec_abs2, axis=0)
     weight_y_2d = xp.mean(env_spec_abs2, axis=1)
-    zeta_x = xp.average(derivative_x_zeta.T, weights=weight_x_2d)
-    zeta_y = xp.average(derivative_y_zeta.T, weights=weight_y_2d)
+    zeta_x = weighted_avg(derivative_x_zeta.T, weight_x_2d)
+    zeta_y = weighted_avg(derivative_y_zeta.T, weight_y_2d)
     nu_x = 4 * zeta_x / (w0**2 * tau**2 + 4 * zeta_x**2)
     nu_y = 4 * zeta_y / (w0**2 * tau**2 + 4 * zeta_y**2)
     return [zeta_x, zeta_y], [nu_x, nu_y]
@@ -1232,15 +1263,13 @@ def get_beta(dim, grid, k0):
     # Get the spectral axis
     omega = spectral_axis + k0 * c
     # Calculate angular dispersion beta
-    phi_envelop_abs = xp.unwrap(
-        xp.array(xp.arctan2(env_spec.imag, env_spec.real)), axis=2
-    )
-    angle_x = xp.gradient(phi_envelop_abs, grid.dx[1], axis=1) / k0
-    angle_y = xp.gradient(phi_envelop_abs, grid.dx[0], axis=0) / k0
-    derivative_x_beta = xp.gradient(angle_y, omega, axis=2)
-    derivative_y_beta = xp.gradient(angle_x, omega, axis=2)
-    beta_x = xp.average(derivative_x_beta, weights=env_spec_abs2)
-    beta_y = xp.average(derivative_y_beta, weights=env_spec_abs2)
+    phi_envelop_abs = unwrap(as_array(xp.arctan2(env_spec.imag, env_spec.real)), axis=2)
+    angle_x = gradient(phi_envelop_abs, grid.dx[1], axis=1) / k0
+    angle_y = gradient(phi_envelop_abs, grid.dx[0], axis=0) / k0
+    derivative_x_beta = gradient(angle_y, omega, axis=2)
+    derivative_y_beta = gradient(angle_x, omega, axis=2)
+    beta_x = weighted_avg(derivative_x_beta, env_spec_abs2)
+    beta_y = weighted_avg(derivative_y_beta, env_spec_abs2)
     return [beta_x, beta_y]
 
 
@@ -1272,10 +1301,10 @@ def get_pft(dim, grid):
     env_abs2 = xp.abs(env**2)
     weight_xy_2d = xp.mean(env_abs2, axis=2)
     z_centroids = xp.sum(grid.axes[2] * env_abs2, axis=2) / xp.sum(env_abs2, axis=2)
-    derivative_x_pft = xp.gradient(z_centroids, axis=0) / grid.dx[0]
-    derivative_y_pft = xp.gradient(z_centroids, axis=1) / grid.dx[1]
-    pft_x = xp.average(derivative_x_pft, weights=weight_xy_2d)
-    pft_y = xp.average(derivative_y_pft, weights=weight_xy_2d)
+    derivative_x_pft = gradient(z_centroids, axis=0) / grid.dx[0]
+    derivative_y_pft = gradient(z_centroids, axis=1) / grid.dx[1]
+    pft_x = weighted_avg(derivative_x_pft, weight_xy_2d)
+    pft_y = weighted_avg(derivative_y_pft, weight_xy_2d)
     return [pft_x, pft_y]
 
 
@@ -1303,11 +1332,11 @@ def get_propation_angle(dim, grid, k0):
     assert dim == "xyt", "Propagation is always on-axis for axis-symmetric dimension."
     env = grid.get_temporal_field()
     env_abs2 = xp.abs(env**2)
-    phi_envelop_abs = xp.unwrap(xp.angle(env), axis=2)
-    pphi_px = xp.gradient(phi_envelop_abs, grid.dx[1], axis=1)
-    pphi_py = xp.gradient(phi_envelop_abs, grid.dx[0], axis=0)
-    angle_x = xp.average(pphi_px, weights=env_abs2) / k0
-    angle_y = xp.average(pphi_py, weights=env_abs2) / k0
+    phi_envelop_abs = unwrap(xp.angle(env), axis=2)
+    pphi_px = gradient(phi_envelop_abs, grid.dx[1], axis=1)
+    pphi_py = gradient(phi_envelop_abs, grid.dx[0], axis=0)
+    angle_x = weighted_avg(pphi_px, env_abs2) / k0
+    angle_y = weighted_avg(pphi_py, env_abs2) / k0
     return [angle_x, angle_y]
 
 
@@ -1398,12 +1427,16 @@ def get_spectral_phase(grid, dim, omega0, method="sum", ordering="zero_center"):
     # create omega array (angular frequencies)
     assert ordering in ["zero_first", "zero_center"]
     if ordering == "zero_center":
-        omega = xp.fft.fftshift(omega, axes=-1)
-        phase = xp.fft.fftshift(phase, axes=-1)
+        try:
+            omega = xp.fft.fftshift(omega, axes=-1)
+            phase = xp.fft.fftshift(phase, axes=-1)
+        except TypeError:
+            omega = xp.fft.fftshift(omega, dim=-1)
+            phase = xp.fft.fftshift(phase, dim=-1)
     omega += omega0
 
     # unwrap the phase
-    phase = xp.unwrap(phase)
+    phase = unwrap(phase)
 
     # return the phase and omega arrays
     return phase, omega
@@ -1461,16 +1494,14 @@ def get_dispersion(grid, dim, omega0, order, omega_eval=None, method="sum"):
     phase, omega = get_spectral_phase(grid, dim, method=method, omega0=omega0)
 
     # calculate the n-th order derivative wrt. angular frequency
-    disp = xp.gradient(phase, omega, axis=-1)
+    disp = gradient(phase, omega, axis=-1)
     for _ in range(order - 1):
-        disp = xp.gradient(disp, omega, axis=-1)
+        disp = gradient(disp, omega, axis=-1)
 
     # get the dispersion at the specified frequency of the envelope's frequency
     omega_eval = omega_eval if omega_eval is not None else omega0
 
-    disp0 = xp.interp(
-        xp.array([omega_eval]), omega, disp, left=float("nan"), right=float("nan")
-    )[0]
+    disp0 = interp(as_array([omega_eval]), omega, disp)[0]
 
     return disp, disp0
 
@@ -1562,12 +1593,12 @@ def get_bandwidth(grid, dim, method="sum", level=None, unit="rad/s", omega0=None
         i_min, i_max = idcs[0], idcs[-1]
 
         # calculate positions of lower and upper bounds
-        lower_bound = xp.interp(
+        lower_bound = interp(
             threshold,
             spectral_intensity[i_min - 1 : i_min + 1],
             width_axis[i_min - 1 : i_min + 1],
         )
-        upper_bound = xp.interp(
+        upper_bound = interp(
             threshold,
             spectral_intensity[i_max : i_max + 2][::-1],
             width_axis[i_max : i_max + 2][::-1],

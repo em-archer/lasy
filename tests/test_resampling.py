@@ -7,7 +7,7 @@ the focal position (radial axis is resampled to accomodate the new size of the b
 we then check that the waist has the expected value in the far field (i.e. in the focal plane)
 """
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array, weighted_avg
 from lasy.laser import Grid, Laser
 from lasy.optical_elements import ParabolicMirror
 from lasy.profiles.combined_profile import CombinedLongitudinalTransverseProfile
@@ -38,13 +38,13 @@ def get_w0(laser, m):
     A2 = (xp.abs(field[m, :, :]) ** 2).sum(-1)
     ax = laser.grid.axes[0]
     if ax[0] > 0:
-        A2 = xp.r_[A2[::-1], A2]
-        ax = xp.r_[-ax[::-1], ax]
+        A2 = xp.concatenate([xp.flip(A2, (0,)), A2])
+        ax = xp.concatenate([-xp.flip(ax, (0,)), ax])
     else:
-        A2 = xp.r_[A2[::-1][:-1], A2]
-        ax = xp.r_[-ax[::-1][:-1], ax]
+        A2 = xp.concatenate([xp.flip(A2, (0,))[: len(A2) - 1], A2])
+        ax = xp.concatenate([-xp.flip(ax, (0,))[: len(ax) - 1], ax])
 
-    sigma = 2 * xp.sqrt(xp.average(ax**2, weights=A2))
+    sigma = 2 * xp.sqrt(weighted_avg(ax**2, weights=A2))
 
     return sigma
 
@@ -60,7 +60,7 @@ def check_resampling(laser, new_grid, m=0):
     assert m in [0, 1]
     w0_theor = wavelength * f0 / (xp.pi * w0)
     if m == 1:
-        w0_theor *= xp.sqrt(3)
+        w0_theor *= xp.sqrt(as_array(3))
     err = 2 * xp.abs(w0_theor - w0_num) / (w0_theor + w0_num)
     assert err < 1e-3
 

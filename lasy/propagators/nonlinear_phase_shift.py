@@ -1,8 +1,6 @@
-from copy import deepcopy
-
 from scipy.constants import c, epsilon_0
 
-from lasy.backend import xp
+from lasy.backend import xp, copy
 
 
 class NonlinearKerrStep:
@@ -59,7 +57,7 @@ class NonlinearKerrStep:
         self.update(n2=n2, k0=k0)
 
         if grid_out is None:
-            grid_out = deepcopy(grid_in)
+            grid_out = copy(grid_in)
 
         temporal_field = grid_in.get_temporal_field()
         intensity = 0.5 * c * epsilon_0 * abs(temporal_field) ** 2

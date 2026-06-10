@@ -1,6 +1,8 @@
 from scipy.constants import c
 
-from lasy.backend import xp
+import numpy as _np
+
+from lasy.backend import xp, lasy_backend, to_cpu, as_array, get_dtype, interp
 
 from .profile import Profile
 
@@ -28,9 +30,11 @@ def gen_gaussian_time_series(t_num, dt, fwhm, rms_mean):
         temporal_amplitude = xp.zeros(t_num, dtype=xp.complex128)
     else:
         omega = xp.fft.fftshift(xp.fft.fftfreq(t_num, d=dt))
-        psd = xp.exp(-xp.log(2) * 0.5 * xp.square(omega / fwhm * 2 * xp.pi))
-        spectral_amplitude = xp.array(psd) * (
-            xp.random.normal(size=t_num) + 1j * xp.random.normal(size=t_num)
+        psd = xp.exp(
+            -xp.log(as_array(2)) * 0.5 * xp.square(as_array(omega / fwhm * 2 * xp.pi))
+        )
+        spectral_amplitude = as_array(psd) * (
+            as_array(_np.random.normal(size=t_num) + 1j * _np.random.normal(size=t_num))
         )
         temporal_amplitude = xp.fft.ifftshift(
             xp.fft.fft(xp.fft.fftshift(spectral_amplitude))
@@ -190,7 +194,7 @@ class SpeckleProfile(Profile):
         super().__init__(wavelength, pol)
         self.laser_energy = laser_energy
         self.focal_length = focal_length
-        self.beam_aperture = xp.array(beam_aperture, dtype="float")
+        self.beam_aperture = as_array(beam_aperture, dtype="float")
         self.n_beamlets = n_beamlets
         self.temporal_smoothing_type = temporal_smoothing_type
         self.laser_bandwidth = relative_laser_bandwidth
@@ -202,19 +206,20 @@ class SpeckleProfile(Profile):
         self.x_lens_list = xp.linspace(
             -0.5 * (self.n_beamlets[0] - 1),
             0.5 * (self.n_beamlets[0] - 1),
-            num=self.n_beamlets[0],
+            self.n_beamlets[0],
         )
         self.y_lens_list = xp.linspace(
             -0.5 * (self.n_beamlets[1] - 1),
             0.5 * (self.n_beamlets[1] - 1),
-            num=self.n_beamlets[1],
+            self.n_beamlets[1],
         )
-        self.Y_lens_matrix, self.X_lens_matrix = xp.meshgrid(
-            self.y_lens_list, self.x_lens_list
+        self.X_lens_matrix, self.Y_lens_matrix = xp.meshgrid(
+            self.x_lens_list,
+            self.y_lens_list,
+            indexing="ij",
         )
-        self.Y_lens_index_matrix, self.X_lens_index_matrix = xp.meshgrid(
-            xp.arange(self.n_beamlets[1], dtype=float),
-            xp.arange(self.n_beamlets[0], dtype=float),
+        self.X_lens_index_matrix, self.Y_lens_index_matrix = xp.meshgrid(
+            xp.arange(self.n_beamlets[0]), xp.arange(self.n_beamlets[1]), indexing="ij"
         )
 
         if "SSD" in self.temporal_smoothing_type.upper():
@@ -228,8 +233,10 @@ class SpeckleProfile(Profile):
                 ssd_transverse_bandwidth_distribution
             )
             ssd_normalization = xp.sqrt(
-                self.ssd_transverse_bandwidth_distribution[0] ** 2
-                + self.ssd_transverse_bandwidth_distribution[1] ** 2
+                as_array(
+                    self.ssd_transverse_bandwidth_distribution[0] ** 2
+                    + self.ssd_transverse_bandwidth_distribution[1] ** 2
+                )
             )
             ssd_frac = [
                 self.ssd_transverse_bandwidth_distribution[0] / ssd_normalization,
@@ -314,37 +321,52 @@ class SpeckleProfile(Profile):
         """
         if "SSD" in self.temporal_smoothing_type.upper():
             ssd_time_delay_sum = self.ssd_time_delay[0] + self.ssd_time_delay[1]
+            if lasy_backend == "TORCH":
+                N_time = (
+                    xp.numel(series_time) + int(ssd_time_delay_sum / self.dt_update) + 2
+                )
+            else:
+                N_time = series_time.size + int(ssd_time_delay_sum / self.dt_update) + 2
             pm_phase0 = gen_gaussian_time_series(
-                series_time.size + int(ssd_time_delay_sum / self.dt_update) + 2,
+                N_time,
                 self.dt_update,
                 2 * xp.pi * self.ssd_phase_modulation_frequency[0],
                 self.ssd_phase_modulation_amplitude[0],
             )
             pm_phase1 = gen_gaussian_time_series(
-                series_time.size + int(ssd_time_delay_sum / self.dt_update) + 2,
+                N_time,
                 self.dt_update,
                 2 * xp.pi * self.ssd_phase_modulation_frequency[1],
                 self.ssd_phase_modulation_amplitude[1],
             )
+            max_t = (
+                to_cpu(series_time[-1])
+                + to_cpu(ssd_time_delay_sum)
+                + 3.0 * self.dt_update
+            )
             time_interp = xp.arange(
-                start=0,
-                stop=series_time[-1] + ssd_time_delay_sum + 3 * self.dt_update,
-                step=self.dt_update,
-            )[: pm_phase0.size]
+                0.0,
+                max_t,
+                self.dt_update,
+            )[:N_time]
             return (
                 time_interp,
                 [
-                    (xp.real(pm_phase0) + xp.imag(pm_phase0)) / xp.sqrt(2),
-                    (xp.real(pm_phase1) + xp.imag(pm_phase1)) / xp.sqrt(2),
+                    (xp.real(pm_phase0) + xp.imag(pm_phase0)) / xp.sqrt(as_array(2)),
+                    (xp.real(pm_phase1) + xp.imag(pm_phase1)) / xp.sqrt(as_array(2)),
                 ],
             )
         elif "ISI" in self.temporal_smoothing_type.upper():
+            if lasy_backend == "TORCH":
+                N_time = xp.numel(series_time)
+            else:
+                N_time = series_time.size
             complex_amp = xp.stack(
                 [
                     xp.stack(
                         [
                             gen_gaussian_time_series(
-                                series_time.size,
+                                N_time,
                                 self.dt_update,
                                 2 * self.laser_bandwidth,
                                 1,
@@ -413,14 +435,14 @@ class SpeckleProfile(Profile):
             )
             return xp.exp(1j * phase_t)
         elif temporal_smoothing_type.upper() == "GP RPM SSD":
-            phase_t = xp.interp(
+            phase_t = interp(
                 t_now
                 + self.X_lens_index_matrix
                 * self.ssd_time_delay[0]
                 / self.n_beamlets[0],
                 series_time,
                 time_series[0],
-            ) + xp.interp(
+            ) + interp(
                 t_now
                 + self.Y_lens_index_matrix
                 * self.ssd_time_delay[1]
@@ -488,7 +510,6 @@ class SpeckleProfile(Profile):
             * self.y_lens_list[:, xp.newaxis]
             * y_focus_list[xp.newaxis, :]
         )
-
         bca = self.beamlets_complex_amplitude(
             t_now,
             series_time=series_time,
@@ -530,22 +551,22 @@ class SpeckleProfile(Profile):
 
         # Calculate auxiliary parameters
         if "RPP" == self.temporal_smoothing_type.upper():
-            phase_plate = xp.random.choice([0, xp.pi], self.n_beamlets)
+            phase_plate = as_array(_np.random.choice([0, xp.pi], self.n_beamlets))
         elif any(
             cpp_smoothing_type in self.temporal_smoothing_type.upper()
             for cpp_smoothing_type in ["CPP", "SSD"]
         ):
-            phase_plate = xp.random.uniform(
-                -xp.pi, xp.pi, size=self.n_beamlets[0] * self.n_beamlets[1]
-            ).reshape(self.n_beamlets)
+            phase_plate = as_array(
+                _np.random.uniform(-xp.pi, xp.pi, size=self.n_beamlets)
+            )
         elif "ISI" in self.temporal_smoothing_type.upper():
             phase_plate = xp.zeros(self.n_beamlets)  # ISI does not require phase plates
         else:
             raise NotImplementedError
+
         exp_phase_plate = xp.exp(1j * phase_plate)
         if self.temporal_smoothing_type.upper() == "FM SSD":
-            self.ssd_x_y_dephasing = xp.random.standard_normal(2) * xp.pi
-
+            self.ssd_x_y_dephasing = as_array(_np.random.standard_normal(2)) * xp.pi
         series_time = xp.arange(0, t_max + self.dt_update, self.dt_update)
 
         if "GP" in self.temporal_smoothing_type.upper():
@@ -553,7 +574,7 @@ class SpeckleProfile(Profile):
         else:
             new_series_time, time_series = series_time, None
 
-        envelope = xp.zeros(x.shape, dtype=complex)
+        envelope = xp.zeros(x.shape, dtype=get_dtype("complex128"))
         for i, t_i in enumerate(t_norm):
             envelope[:, :, i] = self.generate_speckle_pattern(
                 t_i,

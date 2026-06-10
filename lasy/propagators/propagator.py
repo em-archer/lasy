@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from copy import deepcopy
+from lasy.backend import copy
 
 
 class Propagator(ABC):
@@ -70,6 +70,6 @@ class Propagator(ABC):
         # This function explicitly returns a grid. This would let
         # laser.propagate have both grids, and potentially do some check there.
         # Can be rediscussed.
-        grid_out = deepcopy(grid_in)
+        grid_out = copy(grid_in)
 
         return grid_out

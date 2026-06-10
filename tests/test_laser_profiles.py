@@ -5,7 +5,7 @@ import copy
 import pytest
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import lasy_backend, xp, as_array, get_dtype, weighted_avg, unwrap
 from lasy.laser import Laser
 from lasy.optical_elements.parabolic_mirror import ParabolicMirror
 from lasy.profiles import (
@@ -46,7 +46,7 @@ class MockProfile(Profile):
         self.value = value
 
     def evaluate(self, x, y, t):
-        return xp.ones_like(x, dtype="complex128") * self.value
+        return xp.ones_like(x, dtype=get_dtype("complex128")) * self.value
 
 
 class MockTransverseProfile(TransverseProfile):
@@ -57,7 +57,7 @@ class MockTransverseProfile(TransverseProfile):
         self.value = value
 
     def evaluate(self, x, y):
-        return xp.ones_like(x, dtype="complex128") * self.value
+        return xp.ones_like(x, dtype=get_dtype("complex128")) * self.value
 
 
 @pytest.fixture(scope="function")
@@ -81,10 +81,10 @@ def test_transverse_profiles_rt():
 
     # GaussianTransverseProfile
     print("GaussianTransverseProfile")
-    std_th = w0 / xp.sqrt(2)
+    std_th = w0 / xp.sqrt(as_array(2))
     profile = GaussianTransverseProfile(w0)
     field = profile.evaluate(r, xp.zeros_like(r))
-    std = xp.sqrt(xp.average(r**2, weights=xp.abs(field)))
+    std = xp.sqrt(weighted_avg(r**2, weights=xp.abs(field)))
     print("std_th = ", std_th)
     print("std = ", std)
     assert xp.abs(std - std_th) / std_th < 0.01
@@ -92,10 +92,10 @@ def test_transverse_profiles_rt():
     # SuperGaussianTransverseProfile
     print("SuperGaussianTransverseProfile")
     n_order = 100  # close to flat-top, compared with flat-top theory
-    std_th = w0 / xp.sqrt(3)
+    std_th = w0 / xp.sqrt(as_array(3))
     profile = SuperGaussianTransverseProfile(w0, n_order)
     field = profile.evaluate(r, xp.zeros_like(r))
-    std = xp.sqrt(xp.average(r**2, weights=xp.abs(field)))
+    std = xp.sqrt(weighted_avg(r**2, weights=xp.abs(field)))
     print("std_th = ", std_th)
     print("std = ", std)
     assert xp.abs(std - std_th) / std_th < 0.01
@@ -103,9 +103,9 @@ def test_transverse_profiles_rt():
     # JincTransverseProfile
     print("JincTransverseProfile")
     profile = JincTransverseProfile(w0)
-    std_th = 1.5 * w0  # Just measured from this test
+    std_th = as_array(1.5 * w0)  # Just measured from this test
     field = profile.evaluate(r, xp.zeros_like(r))
-    std = xp.sqrt(xp.average(r**2, weights=abs(field) ** 2))
+    std = xp.sqrt(weighted_avg(r**2, weights=abs(field) ** 2))
     print("std_th = ", std_th)
     print("std = ", std)
     assert xp.abs(std - std_th) / std_th < 0.1
@@ -114,10 +114,10 @@ def test_transverse_profiles_rt():
     print("LaguerreGaussianTransverseProfile")
     p = 2
     m = 0
-    std_th = xp.sqrt((2 * p + m + 1) / 2) * w0
+    std_th = xp.sqrt(as_array((2 * p + m + 1) / 2)) * w0
     profile = LaguerreGaussianTransverseProfile(w0, p, m, wavelength=800e-9)
     field = profile.evaluate(r, xp.zeros_like(r))
-    std = xp.sqrt(xp.average(r**2, weights=xp.abs(r) * xp.abs(field) ** 2))
+    std = xp.sqrt(weighted_avg(r**2, weights=xp.abs(r) * xp.abs(field) ** 2))
     print("std_th = ", std_th)
     print("std = ", std)
     assert xp.abs(std - std_th) / std_th < 0.01
@@ -131,15 +131,15 @@ def test_transverse_profiles_3d():
     print("HermiteGaussianTransverseProfile")
     m = 2
     n = 2
-    std_th_x = xp.sqrt(5.0 / 4) * w0_x
-    std_th_y = xp.sqrt(5.0 / 4) * w0_y
+    std_th_x = xp.sqrt(as_array(5.0 / 4)) * w0_x
+    std_th_y = xp.sqrt(as_array(5.0 / 4)) * w0_y
     profile = HermiteGaussianTransverseProfile(w0_x, w0_y, m, n, wavelength=800e-9)
     x = xp.linspace(-4 * w0_x, 4 * w0_x, 200)
     y = xp.linspace(-4 * w0_y, 4 * w0_y, 150)
     field_x = profile.evaluate(x, xp.zeros_like(x))
     field_y = profile.evaluate(xp.zeros_like(y), y)
-    std_x = xp.sqrt(xp.average(x**2, weights=xp.abs(field_x) ** 2))
-    std_y = xp.sqrt(xp.average(y**2, weights=xp.abs(field_y) ** 2))
+    std_x = xp.sqrt(weighted_avg(x**2, weights=xp.abs(field_x) ** 2))
+    std_y = xp.sqrt(weighted_avg(y**2, weights=xp.abs(field_y) ** 2))
     print("std_th_x = ", std_th_x)
     print("std_x = ", std_x)
     print("std_th_y = ", std_th_y)
@@ -171,7 +171,7 @@ def test_longitudinal_profiles():
 
     wavelength = 800e-9
     tau_fwhm = 30.0e-15
-    omega_fwhm = 4 * xp.log(2) / tau_fwhm  # Assumes fully-compressed
+    omega_fwhm = 4 * xp.log(as_array(2)) / tau_fwhm  # Assumes fully-compressed
     t_peak = 1.0 * tau_fwhm
     cep_phase = 0.5 * xp.pi
     omega_0 = 2.0 * xp.pi * c / wavelength
@@ -182,12 +182,12 @@ def test_longitudinal_profiles():
 
     # GaussianLongitudinalProfile
     print("GaussianLongitudinalProfile")
-    tau = tau_fwhm / xp.sqrt(2 * xp.log(2))
+    tau = tau_fwhm / xp.sqrt(as_array(2 * xp.log(as_array(2))))
     profile_gaussian = GaussianLongitudinalProfile(wavelength, tau, t_peak, cep_phase)
     field_gaussian = profile_gaussian.evaluate(t)
 
-    std_gauss = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_gaussian)))
-    std_gauss_th = tau / xp.sqrt(2.0)
+    std_gauss = xp.sqrt(weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_gaussian)))
+    std_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_gauss_th)
     print("std = ", std_gauss)
     assert xp.abs(std_gauss - std_gauss_th) / std_gauss_th < 0.01
@@ -206,16 +206,16 @@ def test_longitudinal_profiles():
     # SuperGaussianLongitudinalProfile
     print("SuperGaussianLongitudinalProfile")
     n_order = 2  # ordinary gaussian
-    tau = tau_fwhm / xp.sqrt(2 * xp.power(xp.log(2), n_order / 2))
+    tau = tau_fwhm / xp.sqrt(as_array(2 * xp.pow(xp.log(as_array(2)), n_order / 2)))
     profile_super_gaussian = SuperGaussianLongitudinalProfile(
         wavelength, tau, t_peak, n_order, cep_phase
     )
     field_super_gaussian = profile_super_gaussian.evaluate(t)
 
     std_super_gauss = xp.sqrt(
-        xp.average((t - t_peak) ** 2, weights=xp.abs(field_super_gaussian))
+        weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_super_gaussian))
     )
-    std_super_gauss_th = tau / xp.sqrt(2.0)
+    std_super_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_super_gauss_th)
     print("std = ", std_super_gauss)
     assert xp.abs(std_super_gauss - std_super_gauss_th) / std_super_gauss_th < 0.01
@@ -238,8 +238,8 @@ def test_longitudinal_profiles():
     profile_cos = CosineLongitudinalProfile(wavelength, tau_fwhm, t_peak, cep_phase)
     field_cos = profile_cos.evaluate(t)
 
-    std_cos = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_cos)))
-    std_cos_th = tau_fwhm * xp.sqrt(1 - 8 / xp.pi**2)
+    std_cos = xp.sqrt(weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_cos)))
+    std_cos_th = tau_fwhm * xp.sqrt(as_array(1 - 8 / xp.pi**2))
     print("std_th = ", std_cos_th)
     print("std = ", std_cos)
     assert xp.abs(std_cos - std_cos_th) / std_cos_th < 0.01
@@ -264,7 +264,7 @@ def test_longitudinal_profiles():
         -(tau**2) * ((omega - omega_0) ** 2) / 4.0 + 1.0j * (cep_phase + omega * t_peak)
     )
     spectral_intensity = xp.abs(profile) ** 2 / xp.max(xp.abs(profile) ** 2)
-    spectral_phase = xp.unwrap(xp.angle(profile))
+    spectral_phase = unwrap(xp.angle(profile))
 
     print("Case 1: monotonically decreasing data on wavelength axis")
     data["axis"] = wavelength_axis
@@ -273,8 +273,10 @@ def test_longitudinal_profiles():
     profile_data = LongitudinalProfileFromData(data, xp.min(t), xp.max(t))
     field_data = profile_data.evaluate(t)
 
-    std_gauss_data = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_data)))
-    std_gauss_th = tau / xp.sqrt(2.0)
+    std_gauss_data = xp.sqrt(
+        weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_data))
+    )
+    std_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_gauss_th)
     print("std = ", std_gauss_data)
     assert xp.abs(std_gauss_data - std_gauss_th) / std_gauss_th < 0.01
@@ -285,14 +287,16 @@ def test_longitudinal_profiles():
     assert xp.abs(t_peak_gaussian_data - t_peak) / t_peak < 0.01
 
     print("Case 2: monotonically increasing data on wavelength axis")
-    data["axis"] = wavelength_axis[::-1]
-    data["intensity"] = spectral_intensity[::-1]
-    data["phase"] = spectral_phase[::-1]
+    data["axis"] = xp.flip(wavelength_axis, (0,))
+    data["intensity"] = xp.flip(spectral_intensity, (0,))
+    data["phase"] = xp.flip(spectral_phase, (0,))
     profile_data = LongitudinalProfileFromData(data, xp.min(t), xp.max(t))
     field_data = profile_data.evaluate(t)
 
-    std_gauss_data = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_data)))
-    std_gauss_th = tau / xp.sqrt(2.0)
+    std_gauss_data = xp.sqrt(
+        weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_data))
+    )
+    std_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_gauss_th)
     print("std = ", std_gauss_data)
     assert xp.abs(std_gauss_data - std_gauss_th) / std_gauss_th < 0.01
@@ -310,8 +314,10 @@ def test_longitudinal_profiles():
     profile_data = LongitudinalProfileFromData(data, xp.min(t), xp.max(t))
     field_data = profile_data.evaluate(t)
 
-    std_gauss_data = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_data)))
-    std_gauss_th = tau / xp.sqrt(2.0)
+    std_gauss_data = xp.sqrt(
+        weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_data))
+    )
+    std_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_gauss_th)
     print("std = ", std_gauss_data)
     assert xp.abs(std_gauss_data - std_gauss_th) / std_gauss_th < 0.01
@@ -322,15 +328,17 @@ def test_longitudinal_profiles():
     assert xp.abs(t_peak_gaussian_data - t_peak) / t_peak < 0.01
 
     print("Case 4: monotonically decreasing data on angular frequency axis")
-    data["axis"] = omega[::-1]
-    data["intensity"] = spectral_intensity[::-1]
-    data["phase"] = spectral_phase[::-1]
+    data["axis"] = xp.flip(omega, (0,))
+    data["intensity"] = xp.flip(spectral_intensity, (0,))
+    data["phase"] = xp.flip(spectral_phase, (0,))
     data["axis_is_wavelength"] = False
     profile_data = LongitudinalProfileFromData(data, xp.min(t), xp.max(t))
     field_data = profile_data.evaluate(t)
 
-    std_gauss_data = xp.sqrt(xp.average((t - t_peak) ** 2, weights=xp.abs(field_data)))
-    std_gauss_th = tau / xp.sqrt(2.0)
+    std_gauss_data = xp.sqrt(
+        weighted_avg((t - t_peak) ** 2, weights=xp.abs(field_data))
+    )
+    std_gauss_th = tau / xp.sqrt(as_array(2.0))
     print("std_th = ", std_gauss_th)
     print("std = ", std_gauss_data)
     assert xp.abs(std_gauss_data - std_gauss_th) / std_gauss_th < 0.01
@@ -381,7 +389,10 @@ def test_from_array_profile():
     wx = 3.0e-6
     wy = 5.0e-6
     tau = 5.0e-15
-    E = e0 * xp.exp(-(X**2) / wx**2 - Y**2 / wy**2 - t**2 / tau**2) * xp.exp(0.0j)
+    E = as_array(
+        e0 * xp.exp(-(X**2) / wx**2 - Y**2 / wy**2 - t**2 / tau**2),
+        dtype="complex128",
+    )
     wavelength = 0.8e-6
     pol = (1, 0)
     axes = {"x": x, "y": y, "t": t}
@@ -394,13 +405,22 @@ def test_from_array_profile():
     laser.write_to_file("fromArray")
 
     F = profile.evaluate(X, Y, T)
-    width = (
-        xp.sqrt(
-            xp.sum(xp.abs(F) ** 2 * x.reshape((x.size, 1, 1)) ** 2)
-            / xp.sum(xp.abs(F) ** 2)
+    if lasy_backend == "TORCH":
+        width = (
+            xp.sqrt(
+                xp.sum(xp.abs(F) ** 2 * x.reshape((xp.numel(x), 1, 1)) ** 2)
+                / xp.sum(xp.abs(F) ** 2)
+            )
+            * 2
         )
-        * 2
-    )
+    else:
+        width = (
+            xp.sqrt(
+                xp.sum(xp.abs(F) ** 2 * x.reshape((x.size, 1, 1)) ** 2)
+                / xp.sum(xp.abs(F) ** 2)
+            )
+            * 2
+        )
     print("theory width  : ", wx)
     print("Measured width: ", width)
     assert xp.abs((width - wx) / wx) < 1.0e-5
@@ -455,7 +475,8 @@ def test_add_profiles():
     assert summed_profile.profiles[1] == profile_2
     # Check that the evaluate method works
     assert xp.allclose(
-        summed_profile.evaluate(xp.array([0]), xp.array([0]), xp.array([0])), 3.0
+        summed_profile.evaluate(as_array([0]), as_array([0]), as_array([0])),
+        as_array([3.0 + 0.0j]),
     )
 
 
@@ -494,10 +515,12 @@ def test_scale_profiles():
     assert scaled_profile.profile == profile_1
     # Check that the evaluate method works
     assert xp.allclose(
-        scaled_profile.evaluate(xp.array([0]), xp.array([0]), xp.array([0])), 2.0
+        scaled_profile.evaluate(as_array([0]), as_array([0]), as_array([0])),
+        as_array([2.0 + 0.0j]),
     )
     assert xp.allclose(
-        scaled_profile_right.evaluate(xp.array([0]), xp.array([0]), xp.array([0])), 2.0
+        scaled_profile_right.evaluate(as_array([0]), as_array([0]), as_array([0])),
+        as_array([2.0 + 0.0j]),
     )
 
 
@@ -520,7 +543,10 @@ def test_add_transverse_profiles():
     assert summed_trans_profile.transverse_profiles[0] == trans_profile_1
     assert summed_trans_profile.transverse_profiles[1] == trans_profile_2
     # Check that the evaluate method works
-    assert xp.allclose(summed_trans_profile.evaluate(xp.array([0]), xp.array([0])), 3.0)
+    assert xp.allclose(
+        summed_trans_profile.evaluate(as_array([0]), as_array([0])),
+        as_array([3.0 + 0.0j]),
+    )
 
 
 def test_add_transverse_error_if_not_all_transverse_profiles():
@@ -540,8 +566,14 @@ def test_scale_transverse_profiles():
     # Check that the profiles are stored correctly
     assert scaled_trans_profile.transverse_profile == trans_profile_1
     # Check that the evaluate method works
-    assert xp.allclose(scaled_trans_profile.evaluate(xp.array([0]), xp.array([0])), 2.0)
-    assert xp.allclose(scaled_trans_profile.evaluate(xp.array([0]), xp.array([0])), 2.0)
+    assert xp.allclose(
+        scaled_trans_profile.evaluate(as_array([0]), as_array([0])),
+        as_array([2.0 + 0.0j]),
+    )
+    assert xp.allclose(
+        scaled_trans_profile_right.evaluate(as_array([0]), as_array([0])),
+        as_array([2.0 + 0.0j]),
+    )
 
 
 def test_scale_trans_error_if_not_scalar():

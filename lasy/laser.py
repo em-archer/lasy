@@ -1,4 +1,5 @@
-from lasy.backend import xp
+from contextlib import nullcontext
+from lasy.backend import xp, no_grad
 from lasy.utils.grid import Grid
 from lasy.utils.laser_utils import (
     normalize_average_intensity,
@@ -189,7 +190,7 @@ class Laser:
         else:
             raise ValueError(f'kind "{kind}" not recognized')
 
-    def apply_optics(self, optical_element):
+    def apply_optics(self, optical_element, differentiable=True):
         """
         Propagate the laser pulse through a thin optical element.
 
@@ -198,35 +199,42 @@ class Laser:
         optical_element: an :class:`.OpticalElement` object (optional)
             Represents a thin optical element, through which the laser
             propagates.
+
+        differentiable : bool, optional
+            If True (default), gradients flow through this operation (TORCH
+            backend only). Set to False to block gradient tracking, e.g. for
+            elements whose parameters are not being optimised.
         """
         # Apply optical element
-        spectral_field, spectral_axis = self.grid.get_spectral_field()
-        if self.dim == "rt":
-            r, omega = xp.meshgrid(
-                self.grid.axes[0], spectral_axis + self.profile.omega0, indexing="ij"
-            )
-            # The line below assumes that amplitude_multiplier
-            # is cylindrically symmetric, hence we pass
-            # `r` as `x` and an array of 0s as `y`
-            multiplier = optical_element.amplitude_multiplier(
-                r, xp.zeros_like(r), omega
-            )
-            # The azimuthal modes are the components of the Fourier transform
-            # along theta (FT_theta). Because the multiplier is assumed to be
-            # cylindrically symmetric (i.e. theta-independent):
-            # FT_theta[ multiplier * field ] = multiplier * FT_theta[ field ]
-            # Thus, we can simply multiply each azimuthal mode by the multiplier.
-            for i_m in range(self.grid.azimuthal_modes.size):
-                spectral_field[i_m, :, :] *= multiplier
-        else:
-            x, y, omega = xp.meshgrid(
-                self.grid.axes[0],
-                self.grid.axes[1],
-                spectral_axis + self.profile.omega0,
-                indexing="ij",
-            )
-            spectral_field *= optical_element.amplitude_multiplier(x, y, omega)
-        self.grid.set_spectral_field(spectral_field)
+        ctx = no_grad() if not differentiable else nullcontext()
+        with ctx:
+            spectral_field, spectral_axis = self.grid.get_spectral_field()
+            if self.dim == "rt":
+                r, omega = xp.meshgrid(
+                    self.grid.axes[0], spectral_axis + self.profile.omega0, indexing="ij"
+                )
+                # The line below assumes that amplitude_multiplier
+                # is cylindrically symmetric, hence we pass
+                # `r` as `x` and an array of 0s as `y`
+                multiplier = optical_element.amplitude_multiplier(
+                    r, xp.zeros_like(r), omega
+                )
+                # The azimuthal modes are the components of the Fourier transform
+                # along theta (FT_theta). Because the multiplier is assumed to be
+                # cylindrically symmetric (i.e. theta-independent):
+                # FT_theta[ multiplier * field ] = multiplier * FT_theta[ field ]
+                # Thus, we can simply multiply each azimuthal mode by the multiplier.
+                for i_m in range(len(self.grid.azimuthal_modes)):
+                    spectral_field[i_m, :, :] *= multiplier
+            else:
+                x, y, omega = xp.meshgrid(
+                    self.grid.axes[0],
+                    self.grid.axes[1],
+                    spectral_axis + self.profile.omega0,
+                    indexing="ij",
+                )
+                spectral_field *= optical_element.amplitude_multiplier(x, y, omega)
+            self.grid.set_spectral_field(spectral_field)
 
     def add_propagator(self, propagator):
         """

@@ -2,7 +2,7 @@ import math
 
 from scipy.special import binom
 
-from lasy.backend import to_cpu, to_gpu, xp
+from lasy.backend import xp, to_cpu, to_gpu, as_array
 
 from .transverse_profile import TransverseProfile
 
@@ -137,7 +137,7 @@ class FlattenedGaussianTransverseProfile(TransverseProfile):
         """
         if self.field_type == "farfield":
             # Term for wavefront curvature + Gouy phase
-            diffract_factor = 1.0 - 1j * self.z_eval / self.zr
+            diffract_factor = as_array(1.0 - 1j * self.z_eval / self.zr)
             w = self.w_foc * xp.abs(diffract_factor)
             psi = xp.angle(diffract_factor)
             # Argument for the Laguerre polynomials

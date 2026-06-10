@@ -2,7 +2,7 @@ from math import factorial
 
 from scipy.special import genlaguerre
 
-from lasy.backend import to_cpu, to_gpu, xp
+from lasy.backend import xp, to_cpu, to_gpu, as_array
 
 from .transverse_profile import TransverseProfile
 
@@ -133,13 +133,13 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         Zr = xp.pi * w_0**2 / wavelength
 
         # Calculate Size at Location Z
-        w0Z = w_0 * xp.sqrt(1 + (z_eval / Zr) ** 2)
+        w0Z = w_0 * xp.sqrt(as_array(1 + (z_eval / Zr) ** 2))
 
         # Calculate Multiplicative Factors
-        A = xp.sqrt(2.0 * factorial(p) / (xp.pi * factorial(m + p))) / w0Z
+        A = xp.sqrt(as_array(2.0 * factorial(p) / (xp.pi * factorial(m + p)))) / w0Z
 
         # Calculate the Phase contributions from propagation
-        phiZ = (2.0 * p + m + 1) * xp.arctan2(z_eval, Zr)
+        phiZ = (2.0 * p + m + 1) * xp.arctan2(as_array(z_eval), as_array(Zr))
 
         self.z_eval = z_eval
         self.Zr = Zr
@@ -175,7 +175,7 @@ class LaguerreGaussianTransverseProfile(TransverseProfile):
         # Calculate the LG in each plane
         LG = (
             A
-            * (xp.sqrt(2.0) * xp.sqrt(x**2 + y**2) / w0Z) ** (m)
+            * (xp.sqrt(as_array(2.0)) * xp.sqrt(x**2 + y**2) / w0Z) ** (m)
             * to_gpu(genlaguerre(p, m)(to_cpu(2.0 * (x**2 + y**2) / w0Z**2)))
             * xp.exp(-(x**2 + y**2) / w0Z**2)
             * xp.exp(-1j * k0 * (x**2 + y**2) / 2 / (z_eval**2 + Zr**2) * z_eval)

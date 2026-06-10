@@ -1,11 +1,9 @@
-import copy
-
-from lasy.backend import xp
+from lasy.backend import xp, copy
 
 
 def gerchberg_saxton_algo(
-    laserPos1,
-    laserPos2,
+    laser1,
+    laser2,
     dz,
     condition="max_iterations",
     max_iterations=10,
@@ -49,8 +47,6 @@ def gerchberg_saxton_algo(
         Phase profiles of the laser pulse at the locations where
         laserPos1 and laserPos2 are defined.
     """
-    laser1 = copy.deepcopy(laserPos1)
-    laser2 = copy.deepcopy(laserPos2)
     amp1 = xp.abs(laser1.grid.get_temporal_field())
     amp1_summed = xp.sum(amp1)
     amp2 = xp.abs(laser2.grid.get_temporal_field())

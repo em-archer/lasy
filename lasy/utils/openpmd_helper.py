@@ -5,7 +5,7 @@ import openpmd_api as io
 from scipy.constants import c
 
 from lasy import __version__ as lasy_version
-from lasy.backend import to_cpu, to_gpu, xp
+from lasy.backend import xp, lasy_backend, to_cpu, to_gpu, copy
 
 from .laser_utils import field_to_vector_potential
 
@@ -139,7 +139,10 @@ def write_to_openpmd_file(
     if dim == "xyt":
         # Switch from x,y,t (internal to lasy) to t,y,x (in openPMD file)
         # This is because many PIC codes expect x to be the fastest index
-        data = xp.transpose(array).copy()
+        if lasy_backend == "TORCH":
+            data = to_cpu(copy(xp.permute(array, (2, 1, 0))))
+        else:
+            data = copy(xp.transpose(array, (2, 1, 0)))
     else:  # dim == "rt"
         # The representation of modes in openPMD
         # (see https://github.com/openPMD/openPMD-standard/blob/latest/STANDARD.md#required-attributes-for-each-mesh-record)
@@ -155,7 +158,10 @@ def write_to_openpmd_file(
             data[2 * mode, :, :] = -1.0j * array[mode, :, :] + 1.0j * array[-mode, :, :]
         # Switch from m,r,t (internal to lasy) to m,t,r (in openPMD file)
         # This is because many PIC codes expect r to be the fastest index
-        data = xp.transpose(data, axes=[0, 2, 1]).copy()
+        if lasy_backend == "TORCH":
+            data = to_cpu(copy(xp.permute(data, (0, 2, 1))))
+        else:
+            data = copy(xp.transpose(data, (0, 2, 1)))
 
     # Define the dataset
     dataset = io.Dataset(data.dtype, data.shape)

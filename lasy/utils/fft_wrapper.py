@@ -1,4 +1,4 @@
-from lasy.backend import xp
+from lasy.backend import xp, copy, to_cpu
 
 
 def fft(which, arr_in, axes_in, from_domain, verbose=0):
@@ -56,7 +56,7 @@ def fft(which, arr_in, axes_in, from_domain, verbose=0):
 
     if which == "transverse":
         # Exit if only 1 element
-        if min(axes_in[0].size, axes_in[1].size) < 2:
+        if min(len(axes_in[0]), len(axes_in[1])) < 2:
             if verbose > 0:
                 print("fft of size 1: do nothing")
             return arr_in, axes_in
@@ -70,18 +70,28 @@ def fft(which, arr_in, axes_in, from_domain, verbose=0):
             xfftshift = xp.fft.fftshift
 
         # Do the FFT
-        arr = xp.copy(arr_in)
+        arr = copy(arr_in)
         if shift_before:
-            arr = xfftshift(arr, axes=(0, 1))
-        arr_out = xfft(arr, axes=(0, 1))
+            try:
+                arr = xfftshift(arr, axes=(0, 1))
+            except TypeError:
+                arr = xfftshift(arr, dim=(0, 1))
+                
+        try:
+            arr_out = xfft(arr, axes=(0, 1))
+        except TypeError:
+            arr_out = xfft(arr, dim=(0, 1))
 
         # Shift after FFT
         if shift_after:
-            arr_out = xfftshift(arr_out, axes=(0, 1))
+            try:
+                arr_out = xfftshift(arr_out, axes=(0, 1))
+            except TypeError:
+                arr_out = xfftshift(arr_out, dim=(0, 1))
 
     else:  # which == "longitudinal"
         # Exit if only 1 element
-        if axes_in.size <= 1:
+        if len(axes_in) <= 1:
             if verbose > 0:
                 print("fft of size 1: do nothing")
             return arr_in, axes_in
@@ -95,14 +105,20 @@ def fft(which, arr_in, axes_in, from_domain, verbose=0):
             xfftshift = xp.fft.fftshift
 
         # Do the FFT
-        arr = xp.copy(arr_in)
+        arr = copy(arr_in)
         if shift_before:
-            arr = xfftshift(arr, axes=-1)
+            try:
+                arr = xfftshift(arr, axes=-1)
+            except TypeError:
+                arr = xfftshift(arr, dim=-1)
         arr_out = xfft(arr, axis=-1)
 
         # Shift after FFT
         if shift_after:
-            arr_out = xfftshift(arr_out, axes=-1)
+            try:
+                arr_out = xfftshift(arr_out, axes=-1)
+            except TypeError:
+                arr_out = xfftshift(arr_out, dim=-1)
 
     axes_out = frequency_axis(which, axes_in, from_domain)
 
@@ -153,7 +169,7 @@ def frequency_axis(which, axes_in, from_domain):
 
     if which == "transverse":
         # Exit if only 1 element
-        if min(axes_in[0].size, axes_in[1].size) < 2:
+        if min(len(axes_in[0]), len(axes_in[1])) < 2:
             return axes_in
         dx = axes_in[0][1] - axes_in[0][0]
         dy = axes_in[1][1] - axes_in[1][0]
@@ -166,8 +182,8 @@ def frequency_axis(which, axes_in, from_domain):
 
         # Build output axes data
         axes_out = [
-            xp.fft.fftfreq(axes_in[0].size, dx),
-            xp.fft.fftfreq(axes_in[1].size, dy),
+            xp.fft.fftfreq(len(axes_in[0]), float(to_cpu(dx))),
+            xp.fft.fftfreq(len(axes_in[1]), float(to_cpu(dy))),
         ]
         if from_domain == "real":
             axes_out[0] *= 2 * xp.pi
@@ -180,7 +196,7 @@ def frequency_axis(which, axes_in, from_domain):
 
     else:  # which == "longitudinal"
         # Exit if only 1 element
-        if axes_in.size <= 1:
+        if len(axes_in) <= 1:
             return axes_in
         d = axes_in[1] - axes_in[0]
 
@@ -191,7 +207,7 @@ def frequency_axis(which, axes_in, from_domain):
             xfftshift = xp.fft.fftshift
 
         # Build output axes data
-        axes_out = xp.fft.fftfreq(axes_in.size, d)
+        axes_out = xp.fft.fftfreq(len(axes_in), d)
         if from_domain == "real":
             axes_out *= 2 * xp.pi
 

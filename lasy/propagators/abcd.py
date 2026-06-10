@@ -1,4 +1,4 @@
-from lasy.backend import xp
+from lasy.backend import as_array, xp, no_grad
 
 
 class ABCD:
@@ -22,9 +22,12 @@ class ABCD:
 
     """
 
-    def __init__(self, abcd=xp.array([[1, 0], [0, 1]])):
+    def __init__(self, abcd=None):
         super().__init__()
-        self.abcd = abcd
+        with no_grad():
+            if abcd is None:
+                abcd = as_array([[1.0, 0.0], [0.0, 1.0]])
+            self.abcd = abcd
 
     def add_vacuum(self, distance):
         r"""
@@ -45,8 +48,9 @@ class ABCD:
                 \end{pmatrix}.
 
         """
-        vacuum = xp.array([[1, float(distance)], [0, 1]])
-        self.abcd = xp.matmul(vacuum, self.abcd)
+        with no_grad():
+            vacuum = as_array([[1.0, float(distance)], [0.0, 1.0]])
+            self.abcd = xp.matmul(vacuum, self.abcd)
 
     def add_lens(self, focal_length):
         r"""
@@ -67,5 +71,6 @@ class ABCD:
                 \end{pmatrix}.
 
         """
-        lens = xp.array([[1, 0], [-1.0 / focal_length, 1]])
-        self.abcd = xp.matmul(lens, self.abcd)
+        with no_grad():
+            lens = as_array([[1.0, 0.0], [-1.0 / focal_length, 1.0]])
+            self.abcd = xp.matmul(lens, self.abcd)

@@ -1,4 +1,11 @@
-from lasy.backend import RegularGridInterpolator, xp
+from lasy.backend import (
+    xp,
+    lasy_backend,
+    to_cpu,
+    as_array,
+    RegularGridInterpolator,
+    unwrap,
+)
 
 from .profile import Profile
 
@@ -38,7 +45,7 @@ class FromArrayProfile(Profile):
     axes : Python dictionary containing the axes vectors.
         Keys are 'x', 'y', 't'.
         Values are the 1D arrays of each axis.
-        array.shape = (axes['x'].size, axes['y'].size, axes['t'].size) in 3D,
+        array.shape = (len(axes['x']), len(axes['y']), len(axes['t'])) in 3D,
         and similar in cylindrical geometry.
 
     axes_order : List of strings
@@ -58,14 +65,23 @@ class FromArrayProfile(Profile):
 
         if dim == "xyt":
             assert axes_order == ["x", "y", "t"]
-
-            self.field_interp = RegularGridInterpolator(
-                (axes["x"], axes["y"], axes["t"]),
-                self.array,
-                bounds_error=False,
-                fill_value=0.0 + 0.0j,
-            )
-
+            if lasy_backend == "TORCH":
+                self.combined_field_interp = RegularGridInterpolator(
+                    (to_cpu(axes["x"]), to_cpu(axes["y"]), to_cpu(axes["t"])),
+                    to_cpu(
+                        xp.abs(self.array)
+                        + 1.0j * unwrap(xp.angle(self.array), axis=-1)
+                    ),
+                    bounds_error=False,
+                    fill_value=0.0,
+                )
+            else:
+                self.combined_field_interp = RegularGridInterpolator(
+                    (axes["x"], axes["y"], axes["t"]),
+                    xp.abs(self.array) + 1.0j * unwrap(xp.angle(self.array), axis=-1),
+                    bounds_error=False,
+                    fill_value=0.0,
+                )
         else:  # dim = "rt"
             assert axes_order == ["r", "t"]
 
@@ -91,20 +107,36 @@ class FromArrayProfile(Profile):
             # accurate enough. Instead, the real part of field_interp_modes
             # represents the mode's modulus and its imag the mode's phase.
             for imode in range(self.array.shape[0]):
-                self.field_interp_modes.append(
-                    RegularGridInterpolator(
-                        (r, axes["t"]),
-                        xp.abs(self.array[imode, :, :])
-                        + 1.0j * xp.unwrap(xp.angle(self.array[imode, :, :]), axis=0),
-                        bounds_error=False,
-                        fill_value=0.0,
+                if lasy_backend == "TORCH":
+                    self.field_interp_modes.append(
+                        RegularGridInterpolator(
+                            (to_cpu(r), to_cpu(axes["t"])),
+                            to_cpu(
+                                xp.abs(self.array[imode, :, :])
+                                + 1.0j
+                                * unwrap(xp.angle(self.array[imode, :, :]), axis=0)
+                            ),
+                            bounds_error=False,
+                            fill_value=0.0,
+                        )
                     )
-                )
+                else:
+                    self.field_interp_modes.append(
+                        RegularGridInterpolator(
+                            (r, axes["t"]),
+                            xp.abs(self.array[imode, :, :])
+                            + 1.0j * unwrap(xp.angle(self.array[imode, :, :]), axis=0),
+                            bounds_error=False,
+                            fill_value=0.0,
+                        )
+                    )
 
     def evaluate(self, x, y, t):
         """Return the envelope field of the scaled profile."""
+        if lasy_backend == "TORCH":
+            x, y, t = to_cpu(x), to_cpu(y), to_cpu(t)
         if self.dim == "xyt":
-            return self.field_interp((x, y, t))
+            combined_field = as_array(self.combined_field_interp((x, y, t)))
         else:
             r = xp.sqrt(x**2 + y**2)
             theta = xp.angle(x + 1j * y)
@@ -114,11 +146,12 @@ class FromArrayProfile(Profile):
                 combined_field += self.field_interp_modes[imode]((r, t)) * xp.exp(
                     -1j * imode * theta
                 )
+            combined_field = as_array(combined_field)
 
         return xp.abs(xp.real(combined_field)) * xp.exp(1.0j * xp.imag(combined_field))
 
     def evaluate_mrt(self, mode, r, t):
         """Return the envelope field of the scaled profile."""
         assert self.dim == "rt"
-        combined_field = self.field_interp_modes[mode]((r, t))
+        combined_field = as_array(self.field_interp_modes[mode]((to_cpu(r), to_cpu(t))))
         return xp.abs(xp.real(combined_field)) * xp.exp(1.0j * xp.imag(combined_field))

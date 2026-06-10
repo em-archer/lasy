@@ -6,7 +6,7 @@ the focal position (transverse plane is resampled to accomodate the new size of 
 we then check that the waist has the expected value in the far field (i.e. in the focal plane)
 """
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Grid, Laser
 from lasy.optical_elements import ParabolicMirror
 from lasy.profiles.combined_profile import CombinedLongitudinalTransverseProfile
@@ -36,7 +36,7 @@ def check_resampling(laser, new_grid, m=0, wavelength=800e-9):
     assert m in [0, 1]
     w0_theor = wavelength * f0 / (xp.pi * w0)
     if m == 1:
-        w0_theor *= xp.sqrt(3)
+        w0_theor *= xp.sqrt(as_array(3))
     err = 2 * xp.abs(w0_theor - w0_num) / (w0_theor + w0_num)
 
     assert err < 1e-3

@@ -3,7 +3,7 @@
 import pytest
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.profiles.gaussian_profile import GaussianProfile
 from lasy.utils.laser_utils import export_to_z, import_from_z
@@ -35,7 +35,7 @@ def get_laser_z_analytic(profile, z_axis, r_axis):
     r_axis_2d = r_axis[:, None]
     w0_z = w0 * xp.sqrt(1 + (z_axis_2d / L_Ray) ** 2)
     R_z_inv = z_axis_2d / (z_axis_2d**2 + L_Ray**2)
-    phi_gouy = xp.arctan2(z_axis_2d, L_Ray)
+    phi_gouy = xp.arctan2(as_array(z_axis_2d), as_array(L_Ray))
 
     Field = (
         w0

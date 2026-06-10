@@ -6,7 +6,7 @@ propagating it to the middle of the focal range. It then
 checks that the field amplitude remains high over the focal range.
 """
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.optical_elements import Axiparabola
 from lasy.profiles.combined_profile import CombinedLongitudinalTransverseProfile
@@ -62,7 +62,7 @@ def test_axiparabola():
     # For a Gaussian beam, the field amplitude should be reduced
     # by a factor of sqrt(5) after two Rayleigh lengths
     # Here, we check that the field remains significantly higher (1.5 times higher)
-    assert E_before > E_middle / xp.sqrt(5) * 1.5
+    assert E_before > E_middle / xp.sqrt(as_array(5)) * 1.5
 
     laser.propagate(
         4 * ZR
@@ -71,4 +71,4 @@ def test_axiparabola():
     # For a Gaussian beam, the field amplitude should be reduced
     # by a factor of sqrt(5) after two Rayleigh lengths
     # Here, we check that the field remains significantly higher (1.5 times higher)
-    assert E_after > E_after / xp.sqrt(5) * 1.5
+    assert E_after > E_after / xp.sqrt(as_array(5)) * 1.5

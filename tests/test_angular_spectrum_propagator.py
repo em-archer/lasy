@@ -1,6 +1,6 @@
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.profiles import GaussianProfile
 from lasy.propagators import AngularSpectrumPropagator
@@ -12,7 +12,7 @@ def make_laser():
         wavelength=800e-9,
         pol=(1, 0),
         laser_energy=1,
-        tau=30e-15 / xp.sqrt(2 * xp.log(2)),
+        tau=30e-15 / xp.sqrt(2 * xp.log(as_array(2))),
         w0=100e-6,
         t_peak=0,
     )
@@ -48,7 +48,7 @@ def test_spatial_propagation():
     zR = xp.pi * laser.profile.w0**2 / (laser.profile.lambda0)
     waists_analytical = laser.profile.w0 * xp.sqrt(1 + (z_pos / zR) ** 2)
 
-    assert xp.allclose(waists_propagated, waists_analytical, rtol=1e-5, atol=1e-6)
+    assert xp.allclose(as_array(waists_propagated), as_array(waists_analytical), rtol=1e-5, atol=1e-6)
 
 
 def n_fusedsilica(wavelength):
@@ -78,14 +78,16 @@ def test_temporal_propagation():
         laser.propagate(z)
 
         duration = (
-            get_duration(grid=laser.grid, dim=laser.dim) * 2 * xp.sqrt(2 * xp.log(2))
+            get_duration(grid=laser.grid, dim=laser.dim)
+            * 2
+            * xp.sqrt(2 * xp.log(as_array(2)))
         )
         durations_propagated.append(duration)
 
     gdd = z_pos * 36.163e-27
-    tau_initial = laser.profile.tau * xp.sqrt(2 * xp.log(2))
+    tau_initial = laser.profile.tau * xp.sqrt(2 * xp.log(as_array(2)))
     duration_analytical = tau_initial * xp.sqrt(
-        1 + (4 * xp.log(2) * gdd / tau_initial**2) ** 2
+        1 + (4 * xp.log(as_array(2)) * gdd / tau_initial**2) ** 2
     )
 
-    assert xp.allclose(durations_propagated, duration_analytical, rtol=1e-5, atol=1e-15)
+    assert xp.allclose(as_array(durations_propagated), as_array(duration_analytical), rtol=1e-5, atol=1e-15)

@@ -1,6 +1,6 @@
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, to_cpu, as_array
 
 
 class Profile(object):
@@ -35,8 +35,9 @@ class Profile(object):
 
     def __init__(self, wavelength, pol):
         assert len(pol) == 2
+        pol = as_array(pol)
         norm_pol = xp.sqrt(xp.abs(pol[0]) ** 2 + xp.abs(pol[1]) ** 2)
-        self.pol = xp.array([pol[0] / norm_pol, pol[1] / norm_pol])
+        self.pol = as_array([pol[0] / norm_pol, pol[1] / norm_pol])
         self.lambda0 = wavelength
         self.omega0 = 2 * xp.pi * c / self.lambda0
         self.k0 = 2.0 * xp.pi / wavelength
@@ -107,12 +108,12 @@ class SummedProfile(Profile):
         lambda0s = [p.lambda0 for p in self.profiles]
         pols = [p.pol for p in self.profiles]
         # Check that all wavelengths are the same
-        assert xp.allclose(lambda0s, lambda0s[0]), (
+        assert xp.allclose(as_array(lambda0s), as_array(lambda0s[0])), (
             "Added profiles must have the same wavelength."
         )
         lambda0 = profiles[0].lambda0
         # Check that all polarizations are the same
-        assert xp.allclose(pols, pols[0]), (
+        assert xp.allclose(as_array(to_cpu(pols)), as_array(to_cpu(pols[0]))), (
             "Added profiles must have the same polarization."
         )
         pol = profiles[0].pol

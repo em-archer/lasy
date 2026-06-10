@@ -1,4 +1,4 @@
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 
 from .profile import Profile
 
@@ -150,7 +150,7 @@ class GaussianProfile(Profile):
         self.phi2 = phi2
         self.beta = beta
         self.zeta = zeta
-        self.stc_theta = stc_theta
+        self.stc_theta = as_array(stc_theta)
         self.x0 = x0
         self.y0 = y0
 

@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from axiprop.containers import ScalarFieldEnvelope
 from axiprop.lib import (
     PropagatorFFT2,
@@ -10,9 +8,12 @@ from axiprop.lib import (
 from axiprop.utils import import_from_lasy_grid
 from scipy.constants import c
 
-from lasy.backend import to_cpu, to_gpu, use_cupy, xp
+from lasy.backend import xp, lasy_backend, to_cpu, to_gpu, as_array, copy
 
 from .propagator import Propagator
+
+backend = "CU" if lasy_backend in ["TORCH", "CP"] else "NP"
+print(f"Using {backend} backend for Axiprop propagators.")
 
 
 class AxipropPropagator(Propagator):
@@ -80,12 +81,14 @@ class AxipropPropagator(Propagator):
         """
         if hasattr(self, "props_rt"):
             grid_changed = False
-            for im in range(self.m_axis.size):
+            for im in range(len(self.m_axis)):
                 container_in = containers_in[im]
                 prop_rt = self.props_rt[im]
                 try:
-                    assert xp.allclose(container_in.r, prop_rt.r)
-                    assert xp.allclose(grid_out.axes[0], prop_rt.r_new)
+                    assert xp.allclose(as_array(container_in.r), as_array(prop_rt.r))
+                    assert xp.allclose(
+                        as_array(grid_out.axes[0]), as_array(prop_rt.r_new)
+                    )
                 except AssertionError:
                     grid_changed = True
 
@@ -94,7 +97,7 @@ class AxipropPropagator(Propagator):
 
         if self.make_propagator:
             self.props_rt = []
-            for im in range(self.m_axis.size):
+            for im in range(len(self.m_axis)):
                 m = self.m_axis[im]
                 container_in = containers_in[im]
                 self.props_rt.append(
@@ -104,7 +107,7 @@ class AxipropPropagator(Propagator):
                         r_axis_new=to_cpu(grid_out.axes[0]),
                         mode=m,
                         verbose=verbose,
-                        backend="CU" if use_cupy else "NP",
+                        backend=backend,
                     )
                 )
 
@@ -132,8 +135,8 @@ class AxipropPropagator(Propagator):
         if hasattr(self, "prop_xyt"):
             grid_changed = False
             try:
-                assert xp.allclose(container_in.x, self.prop_xyt.x)
-                assert xp.allclose(container_in.y, self.prop_xyt.y)
+                assert xp.allclose(as_array(container_in.x), as_array(self.prop_xyt.x))
+                assert xp.allclose(as_array(container_in.y), as_array(self.prop_xyt.y))
             except AssertionError:
                 grid_changed = True
 
@@ -146,7 +149,7 @@ class AxipropPropagator(Propagator):
                 y_axis=container_in.y,
                 kz_axis=container_in.k_freq,
                 verbose=verbose,
-                backend="CU" if use_cupy else "NP",
+                backend=backend,
             )
 
     def propagate(
@@ -204,7 +207,7 @@ class AxipropPropagator(Propagator):
                 "grid_out not yet supported for xyt, please use None"
             )
         if grid_out is None:
-            grid_out = deepcopy(grid_in)
+            grid_out = copy(grid_in)
 
         if dim == "rt":
             field = self._propagate_mrt(
@@ -261,7 +264,7 @@ class AxipropPropagator(Propagator):
 
         self.update("rt", omega0, containers_in, grid_out, verbose)
 
-        for im in range(self.m_axis.size):
+        for im in range(len(self.m_axis)):
             prop_rt = self.props_rt[im]
 
             container_in = containers_in[im]
@@ -403,7 +406,7 @@ class AxipropFresnelPropagator(Propagator):
         distance = float(distance)
         if hasattr(self, "props_rt"):
             grid_changed = False
-            for im in range(self.m_axis.size):
+            for im in range(len(self.m_axis)):
                 container_in = containers_in[im]
                 prop_rt = self.props_rt[im]
                 try:
@@ -419,7 +422,7 @@ class AxipropFresnelPropagator(Propagator):
         if self.make_propagator:
             self.props_rt = []
             self.distance = distance
-            for im in range(self.m_axis.size):
+            for im in range(len(self.m_axis)):
                 m = self.m_axis[im]
                 container_in = containers_in[im]
                 self.props_rt.append(
@@ -430,7 +433,7 @@ class AxipropFresnelPropagator(Propagator):
                         r_axis_new=to_cpu(grid_out.axes[0]),
                         mode=m,
                         verbose=verbose,
-                        backend="CU" if use_cupy else "NP",
+                        backend=backend,
                     )
                 )
 
@@ -482,7 +485,7 @@ class AxipropFresnelPropagator(Propagator):
                 y_axis_new=to_cpu(grid_out.axes[1]),
                 kz_axis=container_in.k_freq,
                 verbose=verbose,
-                backend="CU" if use_cupy else "NP",
+                backend=backend,
             )
 
     def propagate(
@@ -594,7 +597,7 @@ class AxipropFresnelPropagator(Propagator):
 
         self.update(distance, "rt", omega0, containers_in, grid_out, verbose)
 
-        for im in range(self.m_axis.size):
+        for im in range(len(self.m_axis)):
             prop_rt = self.props_rt[im]
 
             container_in = containers_in[im]

@@ -9,12 +9,12 @@ import os
 import warnings
 from pprint import pprint
 
-import numpy as np
+import numpy as _np
 import scipy.constants as ct
 import yaml
 from scipy.interpolate import CubicSpline
 
-from lasy.backend import to_cpu, to_gpu, xp
+from lasy.backend import xp, lasy_backend, to_cpu, to_gpu, as_array
 
 try:
     import numdifftools as nd
@@ -192,9 +192,9 @@ class RefractiveIndexDatabase:
             raise RuntimeError(f"Page {page_name} not in book {book_name}!")
 
         # Load the file and return the contents
-        filename_nk = os.path.join(self.database_path, "data", page["data"])
-        with open(filename_nk) as f:
-            mat_dict = yaml.load(f, Loader=yaml.BaseLoader)
+        database_file_nk = os.path.join(self.database_path, "data", page["data"])
+        clean_text_nk = _clean_yaml_file(database_file_nk)
+        mat_dict = yaml.load(clean_text_nk, Loader=yaml.BaseLoader)
         return mat_dict
 
     def get_n2_database_entries(self, shelf_name=None, book_name=None, name=None):
@@ -249,8 +249,8 @@ class RefractiveIndexDatabase:
         data_dict = {}
         for item in book["content"]:
             filename = os.path.join(self.database_path, "data", item["data"])
-            with open(filename) as f:
-                mat_dict = yaml.load(f, Loader=yaml.BaseLoader)
+            clean_file = _clean_yaml_file(filename)
+            mat_dict = yaml.load(clean_file, Loader=yaml.BaseLoader)
             mat_key = os.path.splitext(os.path.split(filename)[1])[0]
             data_dict[mat_key] = mat_dict
         return data_dict
@@ -398,18 +398,18 @@ class Material:
             # Parse different types of data we know about
             if "formula" in type:
                 self.type_n = type
-                self.wavelength_range_n = np.fromstring(
+                self.wavelength_range_n = _np.fromstring(
                     data.get("wavelength_range", "nan nan"), sep=" "
                 )
-                self.coefficients_n = np.fromstring(
+                self.coefficients_n = _np.fromstring(
                     data.get("coefficients", "0 0"), sep=" "
                 )
                 self.equation_n = globals().get("_" + self.type_n)
             else:
-                self.data_raw = xp.fromstring(data.get("data", "0 0\n0 0"), sep=" ")
+                self.data_raw = _np.fromstring(data.get("data", "0 0\n0 0"), sep=" ")
                 n_cols = 3 if "nk" in type else 2
                 self.data_raw = xp.reshape(
-                    self.data_raw, (len(self.data_raw) // n_cols, n_cols)
+                    as_array(self.data_raw), (len(self.data_raw) // n_cols, n_cols)
                 )
                 interp_kw = {}  # dict(bounds_error=False, fill_value=0.)
 
@@ -448,8 +448,8 @@ class Material:
             data_list = mat_dict.get("DATA")
             for data in data_list:
                 if data["type"] == "tabulated n2":
-                    data_raw = xp.fromstring(data.get("data", "0 0\n0 0"), sep=" ")
-                    data_raw = xp.reshape(data_raw, (len(data_raw) // 2, 2))
+                    data_raw = _np.fromstring(data.get("data", "0 0\n0 0"), sep=" ")
+                    data_raw = xp.reshape(as_array(data_raw), (len(data_raw) // 2, 2))
                     mat["data"] = data_raw
             self.data_n2[mat_key] = mat
 
@@ -468,13 +468,13 @@ class Material:
 
         Returns
         -------
-        n : float or np.array
+        n : float or np.array or torch.Tensor
             Refractive index value, same shape as `lambda_mu`. 0 is
             returned for wavelengths outside the applicable range
         """
         # Make inputs into a proper array
         if isinstance(lambda_um, (list, set)):
-            lambda_um = np.array(lambda_um)
+            lambda_um = as_array(lambda_um)
 
         mask = (self.wavelength_range_n[0] < lambda_um) & (
             lambda_um < self.wavelength_range_n[1]
@@ -485,10 +485,10 @@ class Material:
         else:
             n = self.interp_n(lambda_um)
 
-        if isinstance(mask, (bool, np.bool_)):
+        if isinstance(mask, (bool, _np.bool_)):
             return n * int(mask)
         else:
-            n[np.logical_not(mask)] = 0.0
+            n[xp.logical_not(mask)] = 0.0
             return n
 
     def calc_k(self, lambda_um):
@@ -517,7 +517,7 @@ class Material:
 
         # Make inputs into a proper array
         if isinstance(lambda_um, (list, set)):
-            lambda_um = xp.array(lambda_um)
+            lambda_um = as_array(lambda_um)
 
         mask = (self.wavelength_range_k[0] < lambda_um) & (
             lambda_um < self.wavelength_range_k[1]
@@ -525,7 +525,7 @@ class Material:
 
         k = to_gpu(self.interp_k(lambda_um))
 
-        if isinstance(mask, (bool, xp.bool_)):
+        if isinstance(mask, (bool, _np.bool_)):
             return k * int(mask)
         else:
             k[xp.logical_not(mask)] = 0.0
@@ -647,9 +647,9 @@ class Material:
             return 0, []
 
         if return_mean:
-            return xp.mean(xp.array(n2_data)), pages
+            return xp.mean(as_array(n2_data)), pages
         else:
-            return xp.array(n2_data), pages
+            return as_array(n2_data), pages
 
     def print_n2_data(self):
         """Nicely print out all the known data for n2."""
@@ -657,7 +657,7 @@ class Material:
             pprint(self.data_n2)
 
     def _dn_dw(self, lambda_mu, order=1):
-        if have_nd:
+        if have_nd and not lasy_backend == "CP":
             dn_dw = nd.Derivative(self.calc_n, n=order)
             return 1.0 * dn_dw(lambda_mu)
 
@@ -685,20 +685,20 @@ def _formula1(lam, c1, c2, c3, c4, c5, c6, c7):
         + c4 * l2 / (l2 - c5**2)
         + c6 * l2 / (l2 - c7**2)
     )
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _formula2(lam, c1, c2, c3, c4, c5, c6, c7):
     # eg specs/ohara/optical/LAH78.yml
     l2 = lam**2
     n2 = 1 + c1 + c2 * l2 / (l2 - c3) + c4 * l2 / (l2 - c5) + c6 * l2 / (l2 - c7)
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _formula3(lam, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11):
     # eg specs/sumita/optical/K-BOC20.yml
     n2 = c1 + c2 * lam**c3 + c4 * lam**c5 + c6 * lam**c7 + c8 * lam**c9 + c10 * lam**c11
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _formula4(lam, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10=0, c11=0):
@@ -710,7 +710,7 @@ def _formula4(lam, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10=0, c11=0):
         + c6 * lam**c7 / (l2 - c8**c9)
         + c10 * lam**c11
     )
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _formula5(lam, c1, c2, c3, c4, c5, c6, c7):
@@ -738,20 +738,20 @@ def _formula8(lam, c1, c2, c3, c4):
     l2 = lam**2
     RHS = c1 + c2 * l2 / (l2 - c3) + c4 * l2
     n2 = (2 * RHS + 1) / (1 - RHS)
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _formula9(lam, c1, c2, c3, c4, c5, c6):
     # eg organic/CH4N2O - urea/nk/Rosker-e.yml
     lc5 = lam - c5
     n2 = c1 + c2 / (lam**2 - c3) + c4 * lc5 / (lc5**2 + c6)
-    return np.sqrt(n2)
+    return xp.sqrt(as_array(n2))
 
 
 def _clean_yaml_file(filename):
     # Clean the nk and n2 file of the 'DIVIDER' items
     clean_text = []
-    with open(filename) as f:
+    with open(filename, encoding="utf-8") as f:
         for line in f:
             if "DIVIDER" not in line:
                 clean_text.append(line)

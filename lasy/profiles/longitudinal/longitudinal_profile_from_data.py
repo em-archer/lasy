@@ -1,6 +1,6 @@
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array, interp, unwrap
 
 from .longitudinal_profile import LongitudinalProfile
 
@@ -81,13 +81,13 @@ class LongitudinalProfileFromData(LongitudinalProfile):
                 'data["axis"] must be in monotonically increasing or decreasing order.'
             )
             if data.get("phase") is None:
-                spectral_phase = xp.zeros_like(wavelength)
+                spectral_phase = xp.zeros_like(as_array(wavelength))
             else:
                 spectral_phase = data["phase"]
             if xp.all(xp.diff(wavelength) < 0):  # Flip arrays
-                wavelength = wavelength[::-1]
-                spectral_intensity = spectral_intensity[::-1]
-                spectral_phase = spectral_phase[::-1]
+                wavelength = xp.flip(wavelength, (0,))
+                spectral_intensity = xp.flip(spectral_intensity, (0,))
+                spectral_phase = xp.flip(spectral_phase, (0,))
             dt = data["dt"]
             cwl = xp.sum(spectral_intensity * wavelength) / xp.sum(spectral_intensity)
             cfreq = c / cwl
@@ -101,11 +101,15 @@ class LongitudinalProfileFromData(LongitudinalProfile):
             N = int(sample_freq / dfreq)
             freq = xp.linspace(cfreq - sample_freq / 2, cfreq + sample_freq / 2, N)
             # interpolate the spectrum onto this new array
-            freq_intensity = xp.interp(
-                freq, c / wavelength[::-1], spectral_intensity[::-1], left=0, right=0
+            freq_intensity = interp(
+                freq,
+                c / xp.flip(wavelength, (0,)),
+                xp.flip(spectral_intensity, (0,)),
             )
-            freq_phase = xp.interp(
-                freq, c / wavelength[::-1], spectral_phase[::-1], left=0, right=0
+            freq_phase = interp(
+                freq,
+                c / xp.flip(wavelength, (0,)),
+                xp.flip(spectral_phase, (0,)),
             )
 
             freq_amplitude = xp.sqrt(freq_intensity)
@@ -124,14 +128,15 @@ class LongitudinalProfileFromData(LongitudinalProfile):
             # Extract intensity and phase
             temporal_intensity = xp.abs(t_amplitude) ** 2
             temporal_intensity /= xp.max(temporal_intensity)
-            temporal_phase = xp.unwrap(-xp.angle(t_amplitude))
-            temporal_phase -= temporal_phase[xp.argmin(xp.abs(time))]
+            temporal_phase = unwrap(-xp.angle(t_amplitude))
+            phase_offset = temporal_phase[xp.argmin(xp.abs(time))]
+            temporal_phase = temporal_phase - phase_offset
 
         elif data["datatype"] == "temporal":
             time = data["axis"]
             temporal_intensity = data["intensity"]
             if data.get("phase") is None:
-                temporal_phase = xp.zeros_like(time)
+                temporal_phase = xp.zeros_like(as_array(time))
             else:
                 temporal_phase = data["phase"]
             cwl = data["wavelength"]
@@ -144,8 +149,8 @@ class LongitudinalProfileFromData(LongitudinalProfile):
         # Finally crop the temporal domain to the physical domain
         # of interest
 
-        tIndLo = xp.argmin(xp.abs(time - lo))
-        tIndHi = xp.argmin(xp.abs(time - hi))
+        tIndLo = xp.argmin(xp.abs(as_array(time - lo)))
+        tIndHi = xp.argmin(xp.abs(as_array(time - hi)))
 
         self.time = time[tIndLo:tIndHi]
         self.temporal_intensity = temporal_intensity[tIndLo:tIndHi]
@@ -166,8 +171,8 @@ class LongitudinalProfileFromData(LongitudinalProfile):
             Contains the value of the longitudinal envelope at the
             specified points. This array has the same shape as the array t.
         """
-        intensity = xp.interp(t, self.time, self.temporal_intensity)
-        phase = xp.interp(t, self.time, self.temporal_phase)
+        intensity = interp(t, self.time, self.temporal_intensity)
+        phase = interp(t, self.time, self.temporal_phase)
 
         envelope = xp.sqrt(intensity) * xp.exp(-1j * phase)
 

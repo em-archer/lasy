@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import copy
-
 import pytest
 
-from lasy.backend import xp
+from lasy.backend import xp, lasy_backend, to_cpu, as_array, copy
 from lasy.laser import Laser
 from lasy.profiles.gaussian_profile import GaussianProfile
 from lasy.utils.phase_retrieval import gerchberg_saxton_algo
@@ -48,15 +46,18 @@ def test_3D_case(gaussian):
     phaseMask[R > pupilRadius] = 0
 
     # NOW ADD THE PHASE TO EACH SLICE OF THE FOCUS
-    phase3D = xp.repeat(phase[:, :, xp.newaxis], npoints[2], axis=2)
+    if lasy_backend == "TORCH":
+        phase3D = phase[:, :, xp.newaxis].repeat(1, 1, npoints[2])
+    else:
+        phase3D = xp.repeat(phase[:, :, xp.newaxis], npoints[2], axis=2)
     field = laser.grid.get_temporal_field()
     laser.grid.set_temporal_field(xp.abs(field) * xp.exp(1j * phase3D))
 
     # PROPAGATE THE FIELD FIELD FOWARDS AND BACKWARDS BY 1 MM
     propDist = 2e-3
-    laserForward = copy.deepcopy(laser)
+    laserForward = copy(laser)
     laserForward.propagate(propDist)
-    laserBackward = copy.deepcopy(laser)
+    laserBackward = copy(laser)
     laserBackward.propagate(-propDist)
 
     # PERFORM GERCHBERG-SAXTON ALGORTIHM TO RETRIEVE PHASE

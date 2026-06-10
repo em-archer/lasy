@@ -1,7 +1,7 @@
 import openpmd_api as io
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import as_array, xp
 from lasy.utils.laser_utils import (
     create_grid,
     field_to_envelope,
@@ -39,7 +39,7 @@ class FromOpenPMDProfile(FromArrayProfile):
 
     def __init__(self, file_name, envelope_name=None, iteration=None, verbose=False):
         series = io.Series(file_name, io.Access.read_only)
-        iterations = xp.array(series.iterations)
+        iterations = as_array(series.iterations)
         if iteration is None:
             iteration = int(iterations[-1])
         elif iteration not in iterations:

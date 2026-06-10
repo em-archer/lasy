@@ -1,8 +1,6 @@
-import copy
-
 from scipy.constants import c
 
-from lasy.backend import xp, zoom_fft
+from lasy.backend import xp, lasy_backend, to_cpu, as_array, copy, zoom_fft
 
 from .propagator import Propagator
 
@@ -144,25 +142,46 @@ class FresnelChirpZPropagator(Propagator):
         )
 
         # Perform the 2D Zoom FFT as a set of 2x 1D Zoom FFTs
-        F = (
-            zoom_fft(
+        if lasy_backend == "TORCH":
+            F = as_array(
                 zoom_fft(
-                    f,
-                    [freq_x[0], freq_x[-1]],
-                    m=len(freq_x),
-                    fs=sample_frequency_x,
+                    zoom_fft(
+                        to_cpu(f),
+                        to_cpu([freq_x[0], freq_x[-1]]),
+                        m=to_cpu(len(freq_x)),
+                        fs=to_cpu(sample_frequency_x),
+                        endpoint=True,
+                        axis=1,
+                    )
+                    * to_cpu(dx),
+                    to_cpu([freq_y[0], freq_y[-1]]),
+                    m=to_cpu(len(freq_y)),
+                    fs=to_cpu(sample_frequency_y),
                     endpoint=True,
-                    axis=1,
+                    axis=0,
                 )
-                * dx,
-                [freq_y[0], freq_y[-1]],
-                m=len(freq_y),
-                fs=sample_frequency_y,
-                endpoint=True,
-                axis=0,
+                * to_cpu(dy)
             )
-            * dy
-        )
+        else:
+            F = (
+                zoom_fft(
+                    zoom_fft(
+                        f,
+                        [freq_x[0], freq_x[-1]],
+                        m=len(freq_x),
+                        fs=sample_frequency_x,
+                        endpoint=True,
+                        axis=1,
+                    )
+                    * dx,
+                    [freq_y[0], freq_y[-1]],
+                    m=len(freq_y),
+                    fs=sample_frequency_y,
+                    endpoint=True,
+                    axis=0,
+                )
+                * dy
+            )
 
         # Apply the phase factor to shift the transform. Similar to a Fourier Transform shift.
         F *= xp.exp(1j * FreqX * xp.pi * x_range) * xp.exp(1j * FreqY * xp.pi * y_range)
@@ -203,7 +222,7 @@ class FresnelChirpZPropagator(Propagator):
         field_in, omega = grid_in.get_spectral_field()
         if grid_out is None:
             # Create a new grid for the output if not provided
-            grid_out = copy.deepcopy(grid_in)
+            grid_out = copy(grid_in)
             grid_out.set_spectral_field(xp.zeros_like(field_in))
         field_out = grid_out.spectral_field
         omega += omega0
@@ -214,19 +233,26 @@ class FresnelChirpZPropagator(Propagator):
         y = grid_in.axes[1]
         xF = grid_out.axes[0]
         yF = grid_out.axes[1]
-
-        assert xp.isclose(xp.mean(x), 0, atol=1e-8 * xp.abs((x[-1] - x[0]))), (
-            "Input grid x-axis is not centered around zero."
-        )
-        assert xp.isclose(xp.mean(y), 0, atol=1e-8 * xp.abs((y[-1] - y[0]))), (
-            "Input grid y-axis is not centered around zero."
-        )
-        assert xp.isclose(xp.mean(xF), 0, atol=1e-8 * xp.abs((xF[-1] - xF[0]))), (
-            "Output grid x-axis is not centered around zero."
-        )
-        assert xp.isclose(xp.mean(yF), 0, atol=1e-8 * xp.abs((yF[-1] - yF[0]))), (
-            "Output grid y-axis is not centered around zero."
-        )
+        assert xp.isclose(
+            as_array(xp.mean(x)),
+            as_array(0.0),
+            atol=as_array(1e-8 * xp.abs(as_array(x[-1] - x[0]))),
+        ), "Input grid x-axis is not centered around zero."
+        assert xp.isclose(
+            as_array(xp.mean(y)),
+            as_array(0.0),
+            atol=as_array(1e-8 * xp.abs(as_array(y[-1] - y[0]))),
+        ), "Input grid y-axis is not centered around zero."
+        assert xp.isclose(
+            as_array(xp.mean(xF)),
+            as_array(0.0),
+            atol=as_array(1e-8 * xp.abs(as_array(xF[-1] - xF[0]))),
+        ), "Output grid x-axis is not centered around zero."
+        assert xp.isclose(
+            as_array(xp.mean(yF)),
+            as_array(0.0),
+            atol=as_array(1e-8 * xp.abs(as_array(yF[-1] - yF[0]))),
+        ), "Output grid y-axis is not centered around zero."
 
         X, Y = xp.meshgrid(x, y, indexing="ij")
         XF, YF = xp.meshgrid(xF, yF, indexing="ij")

@@ -1,4 +1,11 @@
-from lasy.backend import RegularGridInterpolator, xp
+from lasy.backend import (
+    xp,
+    lasy_backend,
+    to_cpu,
+    as_array,
+    get_dtype,
+    RegularGridInterpolator,
+)
 from lasy.utils.exp_data_utils import find_center_of_mass
 
 from .transverse_profile import TransverseProfile
@@ -44,25 +51,32 @@ class TransverseProfileFromData(TransverseProfile):
     def __init__(self, intensity_data, lo, hi, center_data=True):
         super().__init__()
 
-        intensity_data = intensity_data.astype("float64")
+        intensity_data = as_array(intensity_data, dtype=get_dtype("float64"))
 
-        n_y, n_x = xp.shape(intensity_data)
+        n_y, n_x = intensity_data.shape
 
         dx = (hi[0] - lo[0]) / n_x
         dy = (hi[1] - lo[1]) / n_y
 
         if center_data:
-            x_range = xp.abs(hi[0] - lo[0])
-            y_range = xp.abs(hi[1] - lo[1])
+            x_range = xp.abs(as_array(hi[0] - lo[0]))
+            y_range = xp.abs(as_array(hi[1] - lo[1]))
             x_data = xp.linspace(-x_range / 2, x_range / 2, n_x)
             y_data = xp.linspace(-y_range / 2, y_range / 2, n_y)
 
             n_x0, n_y0 = find_center_of_mass(intensity_data)
-            intensity_data = xp.roll(
-                xp.roll(intensity_data, -int(n_x0 - n_x / 2), axis=1),
-                -int(n_y0 - n_y / 2),
-                axis=0,
-            )
+            if lasy_backend == "TORCH":
+                intensity_data = xp.roll(
+                    xp.roll(intensity_data, -int(n_x0 - n_x / 2), dims=1),
+                    -int(n_y0 - n_y / 2),
+                    dims=0,
+                )
+            else:
+                intensity_data = xp.roll(
+                    xp.roll(intensity_data, -int(n_x0 - n_x / 2), axis=1),
+                    -int(n_y0 - n_y / 2),
+                    axis=0,
+                )
 
         else:
             x_data = xp.linspace(lo[0], hi[0], n_x)
@@ -72,12 +86,20 @@ class TransverseProfileFromData(TransverseProfile):
         intensity_data /= xp.sum(intensity_data) * dx * dy
 
         # Note here we use the square root of intensity to get the 'field'
-        self.field_interp = RegularGridInterpolator(
-            (y_data, x_data),
-            xp.sqrt(intensity_data),
-            bounds_error=False,
-            fill_value=0.0,
-        )
+        if lasy_backend == "TORCH":
+            self.field_interp = RegularGridInterpolator(
+                (to_cpu(y_data), to_cpu(x_data)),
+                to_cpu(xp.sqrt(intensity_data)),
+                bounds_error=False,
+                fill_value=0.0,
+            )
+        else:
+            self.field_interp = RegularGridInterpolator(
+                (y_data, x_data),
+                xp.sqrt(intensity_data),
+                bounds_error=False,
+                fill_value=0.0,
+            )
 
     def _evaluate(self, x, y):
         """

@@ -1,6 +1,6 @@
 from scipy.constants import c
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 from lasy.laser import Laser
 from lasy.profiles import GaussianProfile
 from lasy.propagators import ABCD, CollinsSFFTPropagator
@@ -12,7 +12,7 @@ def make_laserFF():
         wavelength=800e-9,
         pol=(1, 0),
         laser_energy=1,
-        tau=30e-15 / xp.sqrt(2 * xp.log(2)),
+        tau=30e-15 / xp.sqrt(2 * xp.log(as_array(2))),
         w0=5e-3,
         t_peak=0,
     )
@@ -65,4 +65,6 @@ def test_spatial_propagation_SFFT():
 
     waists_analytical = w0 * xp.sqrt(1 + (xp.abs(z_grid - focal_length) / zR) ** 2)
 
-    assert xp.allclose(waists_propagated, waists_analytical, rtol=1e-5, atol=1e-6)
+    assert xp.allclose(
+        as_array(waists_propagated), as_array(waists_analytical), rtol=1e-5, atol=1e-6
+    )

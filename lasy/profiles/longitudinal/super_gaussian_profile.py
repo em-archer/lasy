@@ -62,7 +62,7 @@ class SuperGaussianLongitudinalProfile(LongitudinalProfile):
             specified points. This array has the same shape as the array t.
         """
         envelope = xp.exp(
-            -xp.power(((t - self.t_peak) ** 2) / self.tau**2, self.n_order / 2)
+            -xp.pow(((t - self.t_peak) ** 2) / self.tau**2, self.n_order / 2)
             + 1.0j * (self.cep_phase + self.omega0 * self.t_peak)
         )
 

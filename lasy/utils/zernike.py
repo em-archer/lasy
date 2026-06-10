@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from lasy.backend import xp
+from lasy.backend import xp, as_array
 
 
 def get_zernike_nm(j):
@@ -22,7 +22,7 @@ def get_zernike_nm(j):
     n,m : ints
         The standard Zernike Polynomial Indexes
     """
-    n = int(xp.ceil((-3 + xp.sqrt(9 + 8 * j)) / 2))
+    n = int(xp.ceil((-3 + xp.sqrt(as_array(9 + 8 * j))) / 2))
     m = 2 * j - n * (n + 2)
     return int(m), int(n)
 
@@ -71,9 +71,9 @@ def zernike(x, y, pupil_coords, j):
         scaling = 1
     else:
         if m == 0:
-            scaling = xp.sqrt((n + 1))
+            scaling = xp.sqrt(as_array(n + 1))
         else:
-            scaling = xp.sqrt(2 * (n + 1))
+            scaling = xp.sqrt(as_array(2 * (n + 1)))
     Z = Z * scaling
 
     return Z

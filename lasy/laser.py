@@ -8,7 +8,7 @@ from lasy.utils.laser_utils import (
     normalize_peak_intensity,
     normalize_peak_power,
 )
-from lasy.utils.openpmd_helper import write_to_openpmd_file
+from lasy.utils.openpmd_helper import convert_xyt_to_rt, write_to_openpmd_file
 from lasy.utils.plotting import show_laser
 
 
@@ -272,9 +272,14 @@ class Laser:
         file_format="h5",
         write_dir="diags",
         save_as_vector_potential=False,
+        rt_conversion=None,
     ):
         """
         Write the laser profile + metadata to file.
+
+        If the laser is in ``'xyt'`` geometry and ``rt_conversion`` is provided,
+        the field is first converted to ``'rt'`` cylindrical geometry before
+        writing. The original ``'xyt'`` laser object is not modified.
 
         Parameters
         ----------
@@ -290,14 +295,36 @@ class Laser:
         save_as_vector_potential : bool (optional)
             Whether the envelope is converted to normalized vector potential
             before writing to file.
+
+        rt_conversion : dict or None (optional)
+            Only used when ``self.dim == 'xyt'``. If provided, the field is
+            converted to ``'rt'`` geometry before writing. The dict is passed
+            as keyword arguments to :func:`convert_xyt_to_rt` and must contain
+            at least ``'nr'``. Optional keys are ``'n_azimuthal_modes'``,
+            ``'n_theta_evals'``, and ``'r_max'``. Example::
+
+                laser.write_to_file(
+                    file_prefix="out",
+                    rt_conversion={"nr": 50, "r_max": 50e-6},
+                )
         """
+        if rt_conversion is not None:
+            if self.dim != "xyt":
+                raise ValueError(
+                    "rt_conversion is only supported for lasers with dim='xyt', "
+                    f"got dim='{self.dim}'."
+                )
+            laser_to_write = convert_xyt_to_rt(self, **rt_conversion)
+        else:
+            laser_to_write = self
+
         write_to_openpmd_file(
-            self.dim,
+            laser_to_write.dim,
             write_dir,
             file_prefix,
             file_format,
             self.output_iteration,
-            self.grid,
+            laser_to_write.grid,
             self.profile.lambda0,
             self.profile.pol,
             self.profile.is_cw,

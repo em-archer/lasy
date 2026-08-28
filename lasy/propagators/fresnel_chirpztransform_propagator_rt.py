@@ -5,6 +5,7 @@ from scipy.constants import c
 from scipy.special import j0 as scipy_j0
 
 from lasy.backend import xp
+
 from .propagator import Propagator
 
 
@@ -239,7 +240,7 @@ class FresnelChirpZPropagatorRT(Propagator):
         indxs = xp.argsort(omega)
 
         # Radial axes of the input and output grids.
-        r = grid_in.axes[0]    # shape (Nr,)
+        r = grid_in.axes[0]  # shape (Nr,)
         rF = grid_out.axes[0]  # shape (NrF,)
 
         assert xp.all(r >= -1e-15 * xp.abs(r[-1])), (
@@ -275,7 +276,9 @@ class FresnelChirpZPropagatorRT(Propagator):
             # The exp(ikz) carrier is later cancelled by the phase correction
             # below, consistent with lasy's co-moving frame convention.
             postFactor = (
-                -1j * k / distance
+                -1j
+                * k
+                / distance
                 * xp.exp(1j * k * distance)
                 * xp.exp(1j * k / 2 / distance * rF**2)
             )

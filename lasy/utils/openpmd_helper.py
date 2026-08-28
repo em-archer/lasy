@@ -9,6 +9,7 @@ from lasy.backend import to_cpu, to_gpu, xp
 
 from .laser_utils import field_to_vector_potential
 
+
 def write_to_openpmd_file(
     dim,
     write_dir,

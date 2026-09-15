@@ -1,3 +1,4 @@
+from lasy.backend import as_array
 from lasy.optical_elements.optical_element import OpticalElement
 
 
@@ -49,6 +50,6 @@ class IntensityMask(OpticalElement):
         mask = r_squared <= self.R**2  # True inside, False outside
 
         if self.mask_type == "aperture":
-            return mask.astype(float)  # 1 inside, 0 outside
+            return as_array(mask, dtype=float) # 1 inside, 0 outside
         else:  # "hole"
-            return (~mask).astype(float)  # 0 inside, 1 outside
+            return as_array(~mask, dtype=float)  # 0 inside, 1 outside

@@ -323,20 +323,20 @@ class FresnelChirpZPropagator(Propagator):
         if self.dim == "xyt":
             x, y = grid_in.axes[0], grid_in.axes[1]
             xF, yF = grid_out.axes[0], grid_out.axes[1]
-
-            assert xp.isclose(xp.mean(x), 0, atol=1e-8 * xp.abs(x[-1] - x[0])), (
+            
+            assert xp.isclose(xp.mean(x), as_array(0.0), atol=float(1e-8 * xp.abs(x[-1] - x[0]))), (
                 "Input grid x-axis is not centered around zero."
             )
-            assert xp.isclose(xp.mean(y), 0, atol=1e-8 * xp.abs(y[-1] - y[0])), (
+            assert xp.isclose(xp.mean(y), as_array(0.0), atol=float(1e-8 * xp.abs(y[-1] - y[0]))), (
                 "Input grid y-axis is not centered around zero."
             )
-            assert xp.isclose(xp.mean(xF), 0, atol=1e-8 * xp.abs(xF[-1] - xF[0])), (
+            assert xp.isclose(xp.mean(xF), as_array(0.0), atol=float(1e-8 * xp.abs(xF[-1] - xF[0]))), (
                 "Output grid x-axis is not centered around zero."
             )
-            assert xp.isclose(xp.mean(yF), 0, atol=1e-8 * xp.abs(yF[-1] - yF[0])), (
+            assert xp.isclose(xp.mean(yF), as_array(0.0), atol=float(1e-8 * xp.abs(yF[-1] - yF[0]))), (
                 "Output grid y-axis is not centered around zero."
             )
-
+            
             X, Y = xp.meshgrid(x, y, indexing="ij")
             XF, YF = xp.meshgrid(xF, yF, indexing="ij")
 
